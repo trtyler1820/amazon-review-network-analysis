@@ -15,13 +15,6 @@ Using a subset of the [UCSD Amazon reviews dataset](https://huggingface.co/datas
 
 ---
 
-**Courses**: SI 511 (Data Science), SI 507 (Graph Logic)
-**Student**: Tyler Tran
-**University**: University of Michigan
-**Deadline**: April 24, 2026 | Checkpoint: April 3, 2026
-
----
-
 ## Quick Start
 
 ### Prerequisites
