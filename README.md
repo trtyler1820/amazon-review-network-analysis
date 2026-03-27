@@ -1,5 +1,6 @@
 # Amazon Reviews Analysis: User Retention & Expansion Patterns
 
+## Intro
 Amazon review data offers a public record of user engagement with products over time. By treating reviews as a proxy for product interaction, this project analyzes which product categories are strong entry points for users, which categories are associated with repeat engagement, and which early product paths lead users into broader downstream category exploration.
 
 ## Objective
