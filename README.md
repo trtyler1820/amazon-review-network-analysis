@@ -1,6 +1,24 @@
 # Amazon Reviews Analysis: User Retention & Expansion Patterns
 
-**Project Overview**: Graph-based analysis of Amazon review data to understand user retention in product categories and cross-category expansion patterns.
+Amazon review data offers a public record of user engagement with products over time. By treating reviews as a proxy for product interaction, this project analyzes which product categories are strong entry points for users, which categories are associated with repeat engagement, and which early product paths lead users into broader downstream category exploration.
+
+## Objective
+
+Using a subset of the [UCSD Amazon reviews dataset](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023), I built a temporal user-product interaction model to analyze which product categories are strongest at retaining user engagement and which entry categories are most associated with later expansion into other high-value categories. The goal is to frame the analysis as an exploration of the data to support product growth opportunities.
+
+## Business / Product Questions
+
+- Which product categories appear to be the highest-value candidates for further strategic investment?
+- Which product categories are the strongest user entry points?
+- Which categories attract many first-time reviewers, but fail to retain them?
+- Which first reviewed categories are most associated with later expansion into high-retention categories?
+
+---
+
+**Courses**: SI 511 (Data Science), SI 507 (Graph Logic)
+**Student**: Tyler Tran
+**University**: University of Michigan
+**Deadline**: April 24, 2026 | Checkpoint: April 3, 2026
 
 ---
 
