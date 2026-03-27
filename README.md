@@ -2,12 +2,6 @@
 
 **Project Overview**: Graph-based analysis of Amazon review data to understand user retention in product categories and cross-category expansion patterns.
 
-**Courses**: SI 511 (Data Science), SI 507 (Graph Logic)
-**Student**: Tyler Tran
-**University**: University of Michigan
-**Deadline**: April 24, 2026 | Checkpoint: April 3, 2026
-**Status**: Phase 1 pipeline implemented | verify current artifact mode (sample vs full) before Phase 2
-
 ---
 
 ## Quick Start
