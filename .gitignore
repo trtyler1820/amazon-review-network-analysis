@@ -16,6 +16,10 @@ data/cleaned/*
 # Rationale internal doc
 /docs/course_specs/project_rationale.md
 
+# PM portfolio drafts (examples, not final)
+/docs/DECISIONS.md
+/docs/README_EXAMPLE.md
+
 # Python artifacts
 __pycache__/
 **/__pycache__/
