@@ -18,6 +18,7 @@ Session logs are stored as individual files for token efficiency. Each session g
 | [2026-03-27_session3d_doc-consistency.md](2026-03-27_session3d_doc-consistency.md) | 2026-03-27 | Doc consistency pass: w26_data→data/raw, HuggingFace URL, CLAUDE.md status, artifact disclaimer |
 | [2026-03-27_session4_phase2-scaffold.md](2026-03-27_session4_phase2-scaffold.md) | 2026-03-27 | Phase 2 scaffold: graph_logic/ + tests/ — 54/54 passing, 92% coverage |
 | [2026-03-29_session5_codex-audit-handoff.md](2026-03-29_session5_codex-audit-handoff.md) | 2026-03-29 | Read-only audit handoff for Claude: Phase 2 correctness fixes, integration test activation, PROJECT_PLAN sync |
+| [2026-03-29_session5b_phase2-codex-fixes.md](2026-03-29_session5b_phase2-codex-fixes.md) | 2026-03-29 | Phase 2 activation: Codex fixes, right-censoring, 83/83 tests, 94% coverage |
 
 ---
 
@@ -33,8 +34,8 @@ Session logs are stored as individual files for token efficiency. Each session g
 
 | Date | Phase | Status | Notes |
 |------|-------|--------|-------|
-| Apr 3, 2026 | Phase 1 (Data Cleaning) | In Progress | Checkpoint deadline |
-| Apr 10, 2026 | Phase 2 (Graph Logic) | Pending | Must complete 80%+ tests |
+| Apr 3, 2026 | Phase 1 (Data Cleaning) | ✅ Complete | 2,523,881 rows cleaned |
+| Apr 10, 2026 | Phase 2 (Graph Logic) | ✅ Complete | 83/83 tests, 94% coverage |
 | Apr 17, 2026 | Phase 3 (Web Interface) | Pending | 4+ interaction modes required |
 | Apr 24, 2026 | Phase 4 (Finalization) | Pending | Final submission deadline |
 
@@ -49,6 +50,6 @@ Session logs are stored as individual files for token efficiency. Each session g
 
 ## Current Status
 
-- **Phase 1**: Full cleaned artifact exists in `data/cleaned/cleaned_reviews.csv`; `docs/data_quality_report.md` reflects a full run dated 2026-03-28.
-- **Phase 2**: Scaffold exists, but metric correctness and validation are not fully closed. Highest-priority blockers are right-censoring, transition counting, and graph edge semantics.
-- **Next action**: Use `logs/2026-03-29_session5_codex-audit-handoff.md` as the implementation brief for Claude, then update tests and docs to match the repaired logic.
+- **Phase 1**: Complete. Full cleaned dataset: 2,523,881 rows, 1,832,347 users, 369,782 products.
+- **Phase 2**: Complete. All Codex audit findings implemented. 83/83 tests passing, 94% coverage. Right-censoring, MultiDiGraph, transition fix, 5 spot-checks verified.
+- **Next action**: Phase 3 — build Streamlit web dashboard with 4+ interaction modes.

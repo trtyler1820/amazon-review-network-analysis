@@ -1,31 +1,21 @@
 """
 Integration tests — require the full cleaned dataset (2.52M rows).
 
-These tests are skipped until the full pipeline run completes tonight:
-  python3 scripts/clean_data.py
+Run with: pytest tests/test_integration.py -v
+Or: make test-all
 
-To activate: remove the @pytest.mark.skip decorators and run:
-  pytest tests/test_integration.py -v
-
-What each test validates:
-  - Row/user/product counts match DATA_QUALITY_REPORT.md after full run
-  - Graph builds without errors on 2.52M rows
-  - Category retention rates are within plausible bounds
-  - Expansion pathways produce non-empty results
-  - Manual spot-check: 5 real users' retention math (required by CLAUDE.md)
+All tests are marked @pytest.mark.slow for selective runs.
+Skip with: pytest tests/ -m "not slow"
 """
 
 import pytest
 import pandas as pd
 from pathlib import Path
 
+pytestmark = pytest.mark.slow
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CLEANED_CSV = PROJECT_ROOT / "data" / "cleaned" / "cleaned_reviews.csv"
-
-SKIP_REASON = (
-    "Full dataset not yet available. "
-    "Run `python3 scripts/clean_data.py` first, then remove @pytest.mark.skip."
-)
 
 EXPECTED_CATEGORIES = {
     "Electronics",
@@ -34,10 +24,10 @@ EXPECTED_CATEGORIES = {
     "Cell_Phones_and_Accessories",
 }
 
-# From DATA_QUALITY_REPORT.md (full run) — update after tonight's run if counts differ
-EXPECTED_ROW_COUNT = 2_516_345
-EXPECTED_USER_COUNT = 1_827_354
-EXPECTED_PRODUCT_COUNT = 369_157
+# From DATA_QUALITY_REPORT.md (full run 2026-03-28)
+EXPECTED_ROW_COUNT = 2_523_881
+EXPECTED_USER_COUNT = 1_832_347
+EXPECTED_PRODUCT_COUNT = 369_782
 
 
 # ---------------------------------------------------------------------------
@@ -47,14 +37,17 @@ EXPECTED_PRODUCT_COUNT = 369_157
 @pytest.fixture(scope="module")
 def cleaned_df():
     """Load the full cleaned CSV once for all integration tests."""
-    return pd.read_csv(
-        CLEANED_CSV,
-        parse_dates=["date", "user_first_date"],
+    df = pd.read_csv(CLEANED_CSV)
+    df["date"] = pd.to_datetime(df["date"], format="ISO8601", utc=True)
+    df["user_first_date"] = pd.to_datetime(
+        df["user_first_date"], format="ISO8601", utc=True,
     )
+    return df
 
 
 @pytest.fixture(scope="module")
 def graph(cleaned_df):
+    """Build graph from full dataset (~18s on first call, cached for module)."""
     from graph_logic.models import Graph
     return Graph.from_dataframe(cleaned_df)
 
@@ -63,29 +56,24 @@ def graph(cleaned_df):
 # Dataset integrity
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_row_count_matches_report(cleaned_df):
     assert len(cleaned_df) == EXPECTED_ROW_COUNT, (
         f"Expected {EXPECTED_ROW_COUNT} rows, got {len(cleaned_df)}"
     )
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_unique_users_match_report(cleaned_df):
     assert cleaned_df["user_id"].nunique() == EXPECTED_USER_COUNT
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_unique_products_match_report(cleaned_df):
     assert cleaned_df["parent_asin"].nunique() == EXPECTED_PRODUCT_COUNT
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_categories_are_exactly_four(cleaned_df):
     assert set(cleaned_df["category_name"].unique()) == EXPECTED_CATEGORIES
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_no_nulls_in_required_columns(cleaned_df):
     required = [
         "user_id", "parent_asin", "timestamp", "date",
@@ -96,12 +84,10 @@ def test_no_nulls_in_required_columns(cleaned_df):
         assert cleaned_df[col].isna().sum() == 0, f"Nulls found in {col}"
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_verified_purchase_all_true(cleaned_df):
     assert cleaned_df["verified_purchase"].all()
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_ratings_in_valid_range(cleaned_df):
     assert cleaned_df["rating"].between(1.0, 5.0).all()
 
@@ -110,55 +96,57 @@ def test_ratings_in_valid_range(cleaned_df):
 # Graph construction
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_graph_builds_without_error(graph):
     assert graph is not None
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_graph_user_count_matches(graph):
     assert len(graph.users) == EXPECTED_USER_COUNT
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_graph_categories_are_four(graph):
     assert set(graph.categories.keys()) == EXPECTED_CATEGORIES
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_interaction_graph_has_edges(graph):
     assert graph.interaction_graph.number_of_edges() > 0
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
+def test_interaction_graph_edge_count_equals_reviews(graph):
+    """MultiDiGraph should have one edge per review row."""
+    assert graph.interaction_graph.number_of_edges() == EXPECTED_ROW_COUNT
+
+
 def test_transition_graph_has_nodes(graph):
     for cat in EXPECTED_CATEGORIES:
         assert cat in graph.transition_graph.nodes
+
+
+def test_transition_graph_fully_connected(graph):
+    """All 4 categories should have transitions to each other (12 edges)."""
+    assert graph.transition_graph.number_of_edges() == 12
 
 
 # ---------------------------------------------------------------------------
 # Retention rates (plausibility checks)
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_retention_rates_between_zero_and_one(graph):
     for cat in graph.categories.values():
         rate = cat.retention_rate
         assert 0.0 <= rate <= 1.0, f"{cat.name} retention rate out of bounds: {rate}"
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_high_retention_categories_nonempty(graph):
     from graph_logic.analysis import identify_high_retention_categories
     high_ret = identify_high_retention_categories(graph.categories)
-    assert len(high_ret) > 0, "No high-retention categories found — check min_users threshold"
+    assert len(high_ret) > 0, "No high-retention categories found"
 
 
 # ---------------------------------------------------------------------------
 # Expansion pathways
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_expansion_pathways_nonempty(graph):
     from graph_logic.analysis import (
         identify_high_retention_categories,
@@ -169,24 +157,55 @@ def test_expansion_pathways_nonempty(graph):
     assert len(pathways) > 0, "No expansion pathways computed"
 
 
+def test_summary_report_not_empty(graph):
+    from graph_logic.analysis import generate_summary_report
+    report = generate_summary_report(graph)
+    assert len(report) > 200
+    assert "RETENTION RATES" in report
+    assert "EXPANSION PATHWAYS" in report
+
+
 # ---------------------------------------------------------------------------
 # Manual spot-checks: 5 real users (required by CLAUDE.md)
-# Populate SPOT_CHECK_USERS after the full run with actual user IDs from the CSV.
+#
+# Each user was manually verified against the CSV using pandas.
 # ---------------------------------------------------------------------------
 
-SPOT_CHECK_USERS: list = []
-# Example format (fill in after full run):
-# SPOT_CHECK_USERS = [
-#     {
-#         "user_id": "AEVPPTMG43C6GWSR7I2UGRQN7WFQ",
-#         "category": "Electronics",
-#         "expected_retained": True,
-#     },
-# ]
+SPOT_CHECK_USERS = [
+    {
+        "user_id": "AEAVWVRGL5XNUQMS2KWQM5D6ZO4Q",
+        "category": "Electronics",
+        "expected_retained": True,
+        # 54 reviews in Electronics, 4 distinct days in 90d window
+    },
+    {
+        "user_id": "AFPVH2M2WRDLREBNC3RF4T45ZQQQ",
+        "category": "Video_Games",
+        "expected_retained": True,
+        # 26 reviews in Video_Games, 7 distinct days in 90d window
+    },
+    {
+        "user_id": "AE2NIDPGORJYYE6AG2K6OV3CEMZQ",
+        "category": "Software",
+        "expected_retained": False,
+        # Only 1 review in Software → fails 2+ reviews requirement
+    },
+    {
+        "user_id": "AE22JPQNQI2KOOQPBRTNY5J4T3WA",
+        "category": "Electronics",
+        "expected_retained": False,
+        # 2 reviews in Electronics, but both on 2023-02-22 (1 distinct day)
+    },
+    {
+        "user_id": "AE22HAROTCUVAX2KFGVG5G4PY7RQ",
+        "category": "Electronics",
+        "expected_retained": False,
+        # 2 reviews in Electronics, but 2nd at day 114 (outside 90d window)
+    },
+]
 
 
-@pytest.mark.skip(reason=SKIP_REASON)
-@pytest.mark.parametrize("case", SPOT_CHECK_USERS)
+@pytest.mark.parametrize("case", SPOT_CHECK_USERS, ids=[c["user_id"][:12] for c in SPOT_CHECK_USERS])
 def test_retention_spot_check(graph, case):
     user = graph.users.get(case["user_id"])
     assert user is not None, f"User {case['user_id']} not found in graph"

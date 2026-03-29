@@ -5,7 +5,7 @@
 **Student**: Tyler Tran
 **Deadline**: April 24, 2026
 **Checkpoint**: April 3, 2026
-**Status**: Phase 1 code complete (full CSV pending); Phase 2 scaffold complete (54/54 tests, 92% coverage)
+**Status**: Phase 1 complete. Phase 2 complete (83/83 tests passing). Phase 3 next.
 
 ---
 
@@ -25,8 +25,8 @@ Build an interactive analysis system to understand user retention and cross-cate
 
 | Date | Milestone | Status |
 |------|-----------|--------|
-| April 3, 2026 | **CHECKPOINT**: Phase 1 complete (cleaned dataset ready) | 🔄 In Progress — code done, full CSV run pending |
-| April 10, 2026 | Phase 2 complete (graph logic & tests working) | 🔄 In Progress — scaffold + unit tests done; integration tests pending CSV |
+| April 3, 2026 | **CHECKPOINT**: Phase 1 complete (cleaned dataset ready) | ✅ Complete — 2,523,881 rows cleaned |
+| April 10, 2026 | Phase 2 complete (graph logic & tests working) | ✅ Complete — 83/83 tests, right-censoring, spot-checks |
 | April 17, 2026 | Phase 3 complete (web interface functional) | ⏱️ Pending |
 | April 24, 2026 | Final submission (all phases complete) | ⏱️ Pending |
 
@@ -183,7 +183,7 @@ Categories in the top quartile by retention rate (with minimum 30+ users) - idea
   test_analysis.py
   test_integration.py
 /docs/
-  DATA.md            - Data spec & cleaning notes
+  data_specs.md      - Data spec & cleaning notes
   METRICS.md         - Retention/expansion definitions
 PROJECT_PLAN.md      - High-level overview
 README.md            - Getting started guide
@@ -237,22 +237,25 @@ README.md            - Getting started guide
 ### Phase 1: Data Cleaning (SI 511)
 - [x] Data files from `data/raw/` assessed
 - [x] Data quality issues identified
-- [x] Cleaning pipeline built and tested (`scripts/clean_data.py` — verified on 100-record sample)
+- [x] Cleaning pipeline built and tested (`scripts/clean_data.py`)
 - [x] Derived columns created (user first date, days since, sequence)
-- [x] Cleaned dataset exported — `data/cleaned/cleaned_reviews.csv` (sample only; **full run pending**)
+- [x] Cleaned dataset exported — `data/cleaned/cleaned_reviews.csv` (2,523,881 rows)
 - [x] Quality report generated (`docs/data_quality_report.md`, `docs/phase1_data_integrity_report.md`)
-- [ ] Retention pool size validated (requires full dataset run)
+- [x] Retention pool size validated on full dataset
 
 ### Phase 2: Graph Logic & Testing (SI 507)
 - [x] Graph data structure designed
 - [x] User, Category, Review, Graph classes implemented (`graph_logic/models.py`)
 - [x] Retention calculation engine built (`graph_logic/analysis.py`)
+- [x] Right-censoring guard implemented (excludes late entrants from 90-day denominators)
 - [x] High-retention categories identification implemented
 - [x] Expansion pathway analysis implemented (conditional probability difference formula)
-- [x] Unit tests written — 54/54 passing, 92% coverage (`tests/test_models.py`, `tests/test_analysis.py`)
-- [ ] Integration tests passing (`tests/test_integration.py` — requires full dataset CSV)
-- [ ] Retention calculations manually verified on 5+ sample users (real data)
-- [ ] Summary statistics generated (requires full dataset)
+- [x] Interaction graph: MultiDiGraph preserving review-level edge multiplicity
+- [x] Transition graph: distinct user counts per category transition
+- [x] Unit tests — 60/60 passing (`tests/test_models.py`, `tests/test_analysis.py`)
+- [x] Integration tests — 23/23 passing (`tests/test_integration.py`)
+- [x] Retention calculations manually verified on 5 real users (spot-checks)
+- [x] Summary report generated on full dataset
 
 ### Phase 3: Web Interface (SI 511)
 - [ ] Web framework selected and set up

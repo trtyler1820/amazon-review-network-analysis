@@ -75,14 +75,19 @@ jupyter notebook notebooks/CLEANED_DATA_EXPLORER.ipynb
 │   └── cleaned/
 │       ├── cleaned_reviews.csv    # OUTPUT: Combined cleaned data
 │       └── cleaned_reviews.parquet # (if pyarrow installed)
-├── graph_logic/                   # Phase 2: planned (may not exist yet)
-├── web/                           # Phase 3: planned (may not exist yet)
-├── tests/                         # Planned test suite (may not exist yet)
+├── graph_logic/                   # Phase 2: OOP classes & analysis
+│   ├── models.py                  # User, Category, Review, Graph classes
+│   └── analysis.py                # Retention & expansion calculations
+├── tests/                         # Unit + integration test suite
+│   ├── test_models.py             # Unit tests for models
+│   ├── test_analysis.py           # Unit tests for analysis
+│   └── test_integration.py        # Full-dataset integration tests
+├── web/                           # Phase 3: planned
 ├── docs/
-│   ├── DATA.md                    # Data spec & filtering pipeline
+│   ├── data_specs.md              # Data spec & filtering pipeline
 │   ├── METRICS.md                 # Retention & expansion definitions
-│   ├── DATA_QUALITY_REPORT.md     # Filtering statistics
-│   └── PHASE_1_VALIDATION_REPORT.md # Audit & fixes
+│   ├── data_quality_report.md     # Filtering statistics
+│   └── phase1_data_integrity_report.md # Audit & fixes
 ├── PROJECT_PLAN.md                # High-level overview
 ├── CLAUDE.md                      # Technical guidance & architecture
 ├── notebooks/
@@ -102,19 +107,20 @@ jupyter notebook notebooks/CLEANED_DATA_EXPLORER.ipynb
 - `CLAUDE.md` - Technical constraints & implementation guidance
 
 ### Data & Metrics
-- `docs/DATA.md` - Data spec, filtering pipeline, schema, quality metrics
+- `docs/data_specs.md` - Data spec, filtering pipeline, schema, quality metrics
 - `docs/METRICS.md` - Retention & expansion formula definitions
-- `docs/DATA_QUALITY_REPORT.md` - Auto-generated filtering statistics
+- `docs/data_quality_report.md` - Auto-generated filtering statistics
 
 ### Implementation
 - `scripts/clean_data.py` - Data cleaning pipeline (Phase 1)
-- `graph_logic/` - Graph logic implementation (Phase 2, TBD)
+- `graph_logic/models.py` - OOP classes: User, Category, Review, Graph (Phase 2)
+- `graph_logic/analysis.py` - Retention & expansion calculations (Phase 2)
 - `web/app.py` - Streamlit dashboard (Phase 3, TBD)
-- `tests/` - Test suite (Phase 2-3)
+- `tests/` - Unit & integration tests (83/83 passing)
 
 ### Progress & Audit
-- `logs.md` - Session-by-session progress tracker
-- `docs/PHASE_1_VALIDATION_REPORT.md` - Code audit & quality findings
+- `logs/LOG_INDEX.md` - Session-by-session progress tracker
+- `docs/phase1_data_integrity_report.md` - Code audit & quality findings
 
 ---
 
@@ -158,13 +164,13 @@ retention_rate(category) = retained_users / total_users
 ```
 
 ### Expansion Pathway (90-Day Window)
-An entry category is a **strong expansion pathway** to a high-retention category if:
+An entry category is a **positive expansion pathway** to a high-retention category if:
 
 ```
-ExpansionDifference(A → B) = P(B | first = A) − P(B | first ≠ A) > 5%
+ExpansionDifference(A → B) = P(B | first = A) − P(B | first ≠ A) > 0
 ```
 
-Where P(B | first = A) = probability of reviewing category B within 90 days of entering via category A.
+Where P(B | first = A) = probability of reviewing category B within 90 days of entering via category A. Right-censored users (entering after April 2, 2023) are excluded from both cohorts.
 
 ### High-Retention Categories
 Categories in the **top quartile** of retention rates (with 30+ entering users).
@@ -176,35 +182,24 @@ See `docs/METRICS.md` for complete definitions, formulas, and worked examples.
 ## Project Phases
 
 ### ✅ Phase 1: Data Cleaning (By April 3, 2026)
-**Status**: Pipeline complete; verify whether checked-in output is sample or full run
+**Status**: Complete
 
 - ✅ Cleaning script and methodology implemented
 - ✅ Quality report generation implemented
 - ✅ Validation reports documented
-- ⚠️ Current `cleaned_reviews.csv` may reflect a sample run depending on last execution
+- ✅ Full dataset cleaned: 2,523,881 rows, 1,832,347 users, 369,782 products
 
 ---
 
-### 🔄 Phase 2: Graph Logic & Testing (April 4-10, 2026)
-**Status**: Ready to Start
+### ✅ Phase 2: Graph Logic & Testing (April 4-10, 2026)
+**Status**: Complete
 
-**Objectives**:
-- [ ] Design OOP classes (User, Category, Review, Graph)
-- [ ] Implement retention calculation engine
-- [ ] Identify high-retention categories
-- [ ] Analyze expansion pathways
-- [ ] Write comprehensive tests (80%+ coverage)
-
-**Deliverables**:
-- `graph_logic/models.py` - Core classes
-- `graph_logic/analysis.py` - Calculations
-- `tests/` - Unit & integration tests
-- Summary report (retention rates, expansion patterns)
-
-**Key Metrics to Calculate**:
-- Per-category retention rates
-- High-retention category set (top quartile, 30+ users min)
-- Expansion pathways (all category pairs A → B)
+- ✅ OOP classes: User, Category, Review, Graph (`graph_logic/models.py`)
+- ✅ Retention & expansion calculations (`graph_logic/analysis.py`)
+- ✅ Right-censoring guard for 90-day observation window
+- ✅ Two-layer graph: interaction (MultiDiGraph) + transition (DiGraph)
+- ✅ 83/83 tests passing (unit + integration), 5 manual spot-checks verified
+- ✅ Summary report: retention rates, high-retention categories, expansion pathways
 
 ---
 
@@ -346,10 +341,10 @@ python3 scripts/clean_data.py
 
 ### Documentation
 - **Project Overview**: `PROJECT_PLAN.md`
-- **Data Spec**: `docs/DATA.md`
+- **Data Spec**: `docs/data_specs.md`
 - **Metrics**: `docs/METRICS.md`
 - **Technical Guidance**: `CLAUDE.md`
-- **Progress Log**: `logs.md`
+- **Progress Log**: `logs/LOG_INDEX.md`
 
 ### Data
 
@@ -378,7 +373,7 @@ python3 scripts/clean_data.py
 - **Quality Report**: `docs/DATA_QUALITY_REPORT.md` (auto-generated by cleaning script)
 
 For questions or feedback:
-- Check `logs.md` for session history
+- Check `logs/LOG_INDEX.md` for session history
 - Review `CLAUDE.md` for technical constraints
 - Consult `docs/METRICS.md` for metric definitions
 
@@ -386,16 +381,16 @@ For questions or feedback:
 
 ## Success Criteria
 
-- [ ] Data correctly filtered (verified_purchase=True, Jan-Jun 2023, 4 categories)
-- [ ] Retention calculations manually verified on 5+ sample users
-- [ ] Graph structure correctly represents user-category relationships
-- [ ] Expansion pathway analysis accurate (90-day windows, baseline comparison)
+- [x] Data correctly filtered (verified_purchase=True, Jan-Jun 2023, 4 categories)
+- [x] Retention calculations manually verified on 5+ sample users
+- [x] Graph structure correctly represents user-category relationships
+- [x] Expansion pathway analysis accurate (90-day windows, baseline comparison)
 - [ ] Web interface intuitive with 4+ interaction modes
-- [ ] OOP design with User, Category, Review, Graph classes
-- [ ] 80%+ test coverage with passing unit/integration tests
-- [ ] Complete documentation (DATA.md, METRICS.md, README.md)
+- [x] OOP design with User, Category, Review, Graph classes
+- [x] 80%+ test coverage with passing unit/integration tests
+- [ ] Complete documentation (data_specs.md, METRICS.md, README.md)
 
 ---
 
-**Status**: Ready for Phase 2 once full-run data state is confirmed (if required)
-**Next Step**: Implement Phase 2 graph logic and compute retention/expansion from current verified artifact
+**Status**: Phases 1-2 complete. Phase 3 (web interface) next.
+**Next Step**: Build Streamlit dashboard with 4+ interaction modes

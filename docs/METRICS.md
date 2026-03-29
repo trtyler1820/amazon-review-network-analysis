@@ -139,10 +139,11 @@ ExpansionDifference(Electronics → Video_Games) = 24% − 15% = 9%
 
 ### Categorization
 
-**Expansion Strength (recommended):**
-- **Strong pathway**: ExpansionDifference > 0, both cohorts meet minimum size (e.g., >= 100 users), and statistical uncertainty check (e.g., CI lower bound > 0)
-- **Exploratory positive**: ExpansionDifference > +5% but fails one robustness criterion
-- **Neutral/Negative**: ExpansionDifference <= 0 (or not robust)
+**Expansion Strength:**
+- **Positive pathway**: ExpansionDifference > 0 and both cohorts have >= `min_cohort_size` users (default 0; configurable)
+- **Neutral/Negative**: ExpansionDifference <= 0
+
+*Note*: Statistical uncertainty checks (confidence intervals) are not yet implemented. Current results are raw point estimates. Cohort size filtering is available via the `min_cohort_size` parameter in `compute_expansion_difference()`.
 
 ---
 
@@ -267,6 +268,12 @@ Each metric calculation requires:
 5. **Cross-category users**: Each category has independent retention/entry
    - Example: User A might enter via Electronics, expand to Video_Games, but NOT be retained in either
 
+6. **Right-censoring (observability guard)**:
+   - The dataset ends 2023-07-01 00:00:00 UTC. Users whose first review in a category falls after **2023-04-02** cannot be observed for a full 90-day window.
+   - These users are **excluded from both numerator and denominator** of retention rate calculations and from expansion pathway cohorts.
+   - Implemented via `MAX_ENTRY_DATE = OBSERVATION_END − 90 days` in `graph_logic/models.py`.
+   - Without this guard, late entrants bias retention and expansion rates downward.
+
 ### Calculation Order
 
 **Phase 2 implementation should follow this order:**
@@ -283,10 +290,10 @@ Each metric calculation requires:
 ## 6. References
 
 - **Source PDF:** `docs/course_specs/SI 507.pdf`
-- **Data Spec:** `docs/DATA.md`
+- **Data Spec:** `docs/data_specs.md`
 - **Cleaned Dataset:** `data/cleaned/cleaned_reviews.csv`
-- **Quality Report:** `docs/DATA_QUALITY_REPORT.md`
+- **Quality Report:** `docs/data_quality_report.md`
 
 ---
 
-**Status:** Draft finalized for Phase 2 implementation; requires implementation-time validation checks (cohort size, tie handling, strict window semantics)
+**Status:** Implemented and verified. Right-censoring guard, tie handling, and strict window semantics all in place. 83/83 tests passing including 5 manual spot-checks.

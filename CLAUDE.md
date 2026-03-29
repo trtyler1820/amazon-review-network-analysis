@@ -2,7 +2,7 @@
 
 **Project**: Amazon Reviews Analysis System (SI 511 Data Science + SI 507 Graph Logic)
 **Deadline**: April 24, 2026 | Checkpoint: April 3, 2026
-**Status**: Phase 1 pipeline complete (sample verified; full CSV run pending). Phase 2 ready to start.
+**Status**: Phase 1 complete. Phase 2 complete (83/83 tests, right-censoring, spot-checks). Phase 3 next.
 
 ---
 
@@ -38,18 +38,18 @@ jupyter notebook notebooks/CLEANED_DATA_EXPLORER.ipynb
 ├── scripts/
 │   └── clean_data.py              # Data cleaning pipeline
 ├── docs/
-│   ├── DATA_QUALITY_REPORT.md     # Row counts at each filtering step
-│   ├── DATA.md                    # Data spec & notes
+│   ├── data_quality_report.md     # Row counts at each filtering step
+│   ├── data_specs.md              # Data spec & notes
 │   ├── METRICS.md                 # Retention/expansion definitions
-│   ├── PHASE_1_DATA_INTEGRITY_REPORT.md  # Validation audit report
+│   ├── phase1_data_integrity_report.md   # Validation audit report
 │   └── course_specs/              # Course requirement PDFs
 ├── logs/                          # Session logs (one file per session)
 │   ├── LOG_INDEX.md               # Master index, checkpoints, decisions
 │   └── YYYY-MM-DD_sessionID_*.md  # Individual session logs
 ├── notebooks/
 │   └── CLEANED_DATA_EXPLORER.ipynb  # Interactive data exploration & editing
-├── graph_logic/                   # (Phase 2: to be created)
-├── tests/                         # (Phase 2: to be created)
+├── graph_logic/                   # Phase 2: OOP classes & analysis (complete)
+├── tests/                         # Unit + integration tests (83/83 passing)
 ├── web/                           # (Phase 3: to be created)
 ├── PROJECT_PLAN.md                # High-level project overview
 ├── logs.md                        # Pointer to logs/LOG_INDEX.md
@@ -116,11 +116,11 @@ python3 scripts/clean_data.py --sample-size 25
 7. Validate nulls in critical fields
 8. Combine all 4 categories
 9. Export to CSV
-10. Generate DATA_QUALITY_REPORT.md
+10. Generate data_quality_report.md
 
 **Output Files:**
 - `data/cleaned/cleaned_reviews.csv` - Combined cleaned dataset
-- `docs/DATA_QUALITY_REPORT.md` - Filtering statistics
+- `docs/data_quality_report.md` - Filtering statistics
 
 ---
 
@@ -162,16 +162,16 @@ python3 scripts/clean_data.py --sample-size 25
 - ✅ Generate quality report
 - **Status**: Code complete. Sample run verified (100 records/file). Full dataset run pending.
 
-### Phase 2: Graph Logic (April 4-10)
-- Build OOP classes: User, Category, Review, Graph
-- Implement retention calculations (2+ reviews on 2+ distinct days, within 90-day window)
-- Identify high-retention categories (top quartile, min 30+ users)
-- Analyze expansion pathways using conditional probability difference formula
-- Construct two graph layers:
-  - **User-Product Interaction Layer**: Nodes (users, products), Edges (reviews with timestamp, rating, category, brand)
-  - **Product Transition Layer**: Nodes (categories), Edges (connected when same user reviews both over time)
-- Write comprehensive tests (80%+ coverage)
-- **Key File**: `graph_logic/models.py`, `graph_logic/analysis.py`
+### Phase 2: Graph Logic (April 4-10) — COMPLETE
+- ✅ OOP classes: User, Category, Review, Graph (`graph_logic/models.py`)
+- ✅ Retention calculations with right-censoring guard (excludes late entrants from 90-day denominators)
+- ✅ High-retention categories (top quartile, min 30+ users)
+- ✅ Expansion pathways with min_cohort_size parameter
+- ✅ Two graph layers:
+  - **User-Product Interaction Layer**: MultiDiGraph — one edge per review (preserves review-level multiplicity)
+  - **Category Transition Layer**: DiGraph — edges weighted by distinct user count
+- ✅ 83/83 tests passing (60 unit + 23 integration), 5 manual spot-checks verified
+- **Key Files**: `graph_logic/models.py`, `graph_logic/analysis.py`
 
 ### Phase 3: Web Interface (April 11-17)
 - Build Streamlit dashboard
@@ -184,7 +184,7 @@ python3 scripts/clean_data.py --sample-size 25
 
 ### Phase 4: Finalization (April 18-24)
 - Organize code & clean up
-- Complete documentation (DATA.md, METRICS.md, README.md)
+- Complete documentation (data_specs.md, METRICS.md, README.md)
 - Full test suite passing
 - Performance optimization
 - **Deadline**: April 24, 2026
@@ -240,7 +240,7 @@ python3 scripts/clean_data.py --sample-size 25
 **Log Structure:**
 - `logs/LOG_INDEX.md` — Master index with session list, checkpoints, decisions
 - `logs/YYYY-MM-DD_sessionID_short-description.md` — One file per session
-- `docs/DATA_QUALITY_REPORT.md` — Detailed filtering stats
+- `docs/data_quality_report.md` — Detailed filtering stats
 - `notebooks/CLEANED_DATA_EXPLORER.ipynb` — Interactive data exploration
 
 **Reading Logs (token-efficient):**
@@ -250,20 +250,20 @@ python3 scripts/clean_data.py --sample-size 25
 
 **View latest status:**
 - Check "Current Status" section in `logs/LOG_INDEX.md`
-- Check `docs/DATA_QUALITY_REPORT.md` for data pipeline results
+- Check `docs/data_quality_report.md` for data pipeline results
 
 ---
 
 ## Success Criteria
 
-- [x] Data correctly filtered (verified_purchase=True, Jan-Jun 2023, 4 categories) — pipeline verified on sample; full run pending
-- [ ] Retention calculations manually verified (5+ sample users) — Phase 2
-- [ ] Graph structure validates user-category relationships — Phase 2
-- [ ] Expansion pathways accurate (90-day windows, baseline comparison) — Phase 2
+- [x] Data correctly filtered (verified_purchase=True, Jan-Jun 2023, 4 categories) — 2,523,881 rows
+- [x] Retention calculations manually verified (5 real users spot-checked)
+- [x] Graph structure validates user-category relationships — MultiDiGraph + transition graph
+- [x] Expansion pathways accurate (90-day windows, baseline comparison, right-censoring)
 - [ ] Web interface intuitive (4+ interaction modes) — Phase 3
-- [ ] OOP design with User, Category, Review, Graph classes — Phase 2
-- [ ] 80%+ test coverage — Phase 2
-- [ ] Complete documentation (DATA.md, METRICS.md, README) — Phase 4
+- [x] OOP design with User, Category, Review, Graph classes
+- [x] 80%+ test coverage — 83/83 tests passing
+- [ ] Complete documentation (data_specs.md, METRICS.md, README) — Phase 4
 
 ---
 
@@ -272,7 +272,7 @@ python3 scripts/clean_data.py --sample-size 25
 **Start Here:**
 1. Check `PROJECT_PLAN.md` for high-level overview
 2. Read `logs/LOG_INDEX.md` for session history and current status
-3. Check `docs/DATA_QUALITY_REPORT.md` if Phase 1 complete
+3. Check `docs/data_quality_report.md` if Phase 1 complete
 4. Review this CLAUDE.md for rules & structure
 
 **Before Running Scripts:**
@@ -346,5 +346,5 @@ python3 scripts/clean_data.py --sample-size 25
 
 ---
 
-**Last Updated**: 2026-03-27
-**Status**: Phase 1 pipeline code complete. Full dataset CSV needs regeneration before Phase 2.
+**Last Updated**: 2026-03-29
+**Status**: Phase 1 complete (2.5M rows cleaned). Phase 2 complete (83/83 tests, right-censoring, spot-checks). Phase 3 (web interface) next.

@@ -16,9 +16,10 @@ Key definitions:
 from __future__ import annotations
 
 import numpy as np
+from datetime import datetime
 from typing import Dict, Optional, Set, Tuple
 
-from .models import Category, Graph, User
+from .models import Category, Graph, User, MAX_ENTRY_DATE
 
 
 # ---------------------------------------------------------------------------
@@ -65,6 +66,8 @@ def compute_expansion_difference(
     dest_category: str,
     all_users: Dict[str, User],
     window_days: int = 90,
+    min_cohort_size: int = 0,
+    max_entry_date: Optional["datetime"] = MAX_ENTRY_DATE,
 ) -> Optional[float]:
     """
     Compute ExpansionDifference(entry_category → dest_category).
@@ -77,12 +80,12 @@ def compute_expansion_difference(
 
       ExpansionDifference = P(B | first=A) − P(B | first≠A)
 
-    The "within 90d of entry" window is measured from the user's first-ever
-    review date across all categories (not the category-specific first date).
+    Right-censoring: users whose global first review date falls after
+    `max_entry_date` are excluded from both cohorts (unobservable window).
 
     Returns None if:
       - entry_category == dest_category
-      - either cohort (A or not-A) has zero eligible users
+      - either cohort (A or not-A) has fewer than `min_cohort_size` users
     """
     if entry_category == dest_category:
         return None
@@ -94,18 +97,30 @@ def compute_expansion_difference(
         fc = user.first_category
         if fc is None:
             continue  # timestamp tie — excluded from both cohorts
+
+        # Right-censoring: skip users whose first review is too late
+        if max_entry_date is not None:
+            entry_date = min(
+                min(r.date for r in bucket)
+                for bucket in user.reviews_by_category.values()
+                if bucket
+            )
+            if entry_date > max_entry_date:
+                continue
+
         if fc == entry_category:
             cohort_a.append(user)
         else:
             cohort_not_a.append(user)
 
-    if not cohort_a or not cohort_not_a:
+    if len(cohort_a) < max(1, min_cohort_size):
+        return None
+    if len(cohort_not_a) < max(1, min_cohort_size):
         return None
 
     def _expansion_rate(cohort: list[User]) -> float:
         count = 0
         for user in cohort:
-            # Entry date = earliest review across all categories
             entry_date = min(
                 min(r.date for r in bucket)
                 for bucket in user.reviews_by_category.values()
@@ -124,6 +139,8 @@ def compute_all_expansion_pathways(
     all_users: Dict[str, User],
     high_retention_categories: Set[str],
     window_days: int = 90,
+    min_cohort_size: int = 0,
+    max_entry_date: Optional[datetime] = MAX_ENTRY_DATE,
 ) -> Dict[Tuple[str, str], float]:
     """
     Compute ExpansionDifference for all (A, B) pairs where B is high-retention
@@ -143,7 +160,9 @@ def compute_all_expansion_pathways(
             if entry_cat == dest_cat:
                 continue
             diff = compute_expansion_difference(
-                entry_cat, dest_cat, all_users, window_days
+                entry_cat, dest_cat, all_users, window_days,
+                min_cohort_size=min_cohort_size,
+                max_entry_date=max_entry_date,
             )
             if diff is not None:
                 results[(entry_cat, dest_cat)] = diff

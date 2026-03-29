@@ -22,6 +22,14 @@ from typing import Dict, List, Optional, Set, Tuple
 import networkx as nx
 import pandas as pd
 
+# Data ends 2023-07-01 00:00:00 UTC (exclusive boundary from clean_data.py).
+# Users whose first review in a category falls after this cutoff cannot be
+# observed for a full 90-day window, so they are excluded from retention and
+# expansion denominators to avoid right-censoring bias.
+OBSERVATION_END = datetime(2023, 7, 1, 0, 0, 0, tzinfo=timezone.utc)
+DEFAULT_WINDOW_DAYS = 90
+MAX_ENTRY_DATE = OBSERVATION_END - timedelta(days=DEFAULT_WINDOW_DAYS)
+
 
 # ---------------------------------------------------------------------------
 # Review
@@ -121,7 +129,12 @@ class User:
     # Retention
     # ------------------------------------------------------------------
 
-    def is_retained(self, category: str, window_days: int = 90) -> bool:
+    def is_retained(
+        self,
+        category: str,
+        window_days: int = DEFAULT_WINDOW_DAYS,
+        max_entry_date: Optional[datetime] = MAX_ENTRY_DATE,
+    ) -> bool:
         """
         True if the user is retained in `category`.
 
@@ -130,14 +143,19 @@ class User:
           - 2 or more reviews
           - on at least 2 distinct calendar days (UTC)
 
-        A user with only 1 review in the category is never retained.
-        The window is inclusive: ts <= first_ts + window_days * 24h.
+        Right-censoring guard: if `max_entry_date` is set, users whose first
+        review in the category falls *after* that date are considered
+        unobservable (their 90-day window extends beyond the dataset) and this
+        method returns False.  Pass ``max_entry_date=None`` to disable.
         """
         reviews = self.reviews_in(category)
         if len(reviews) < 2:
             return False
 
         first_date = reviews[0].date
+        if max_entry_date is not None and first_date > max_entry_date:
+            return False
+
         cutoff = first_date + timedelta(days=window_days)
 
         in_window = [r for r in reviews if r.date <= cutoff]
@@ -199,29 +217,59 @@ class Category:
     def __init__(self, name: str) -> None:
         self.name: str = name
         self.users: Dict[str, User] = {}
+        self._retention_rate_cache: Optional[float] = None
 
     def add_user(self, user: User) -> None:
         """Register a user as having reviewed in this category."""
         self.users[user.user_id] = user
+        self._retention_rate_cache = None
 
     @property
     def entering_user_count(self) -> int:
         """Number of users who reviewed in this category."""
         return len(self.users)
 
+    def observable_user_count(
+        self, max_entry_date: Optional[datetime] = MAX_ENTRY_DATE,
+    ) -> int:
+        """Users whose first review in this category is on or before max_entry_date."""
+        if max_entry_date is None:
+            return len(self.users)
+        count = 0
+        for u in self.users.values():
+            reviews = u.reviews_in(self.name)
+            if reviews and reviews[0].date <= max_entry_date:
+                count += 1
+        return count
+
     @property
     def retention_rate(self) -> float:
         """
-        Fraction of users retained in this category.
+        Fraction of observable users retained in this category.
 
-        Returns 0.0 if there are no users (avoids ZeroDivisionError).
+        Users whose first review falls after MAX_ENTRY_DATE are excluded from
+        both numerator and denominator (right-censoring guard).
+        Cached after first computation; invalidated by add_user().
         """
+        if self._retention_rate_cache is not None:
+            return self._retention_rate_cache
         if not self.users:
             return 0.0
-        retained = sum(
-            1 for u in self.users.values() if u.is_retained(self.name)
-        )
-        return retained / len(self.users)
+
+        observable = 0
+        retained = 0
+        for u in self.users.values():
+            reviews = u.reviews_in(self.name)
+            if not reviews:
+                continue
+            if reviews[0].date > MAX_ENTRY_DATE:
+                continue
+            observable += 1
+            if u.is_retained(self.name):
+                retained += 1
+
+        self._retention_rate_cache = retained / observable if observable else 0.0
+        return self._retention_rate_cache
 
     def __repr__(self) -> str:
         return (
@@ -238,9 +286,11 @@ class Graph:
     """
     Two-layer directed graph over Amazon review data.
 
-    Layer 1 — User-Product Interaction Graph (interaction_graph):
+    Layer 1 — User-Product Interaction Graph (interaction_graph, MultiDiGraph):
       Nodes: user IDs (type='user') and parent_asin strings (type='product')
-      Edges: user → product, attrs: timestamp, rating, category_name, helpful_vote
+      Edges: user → product (one per review), attrs: timestamp, rating,
+             category_name, helpful_vote.  Multiple reviews of the same
+             product by the same user create multiple parallel edges.
 
     Layer 2 — Category Transition Graph (transition_graph):
       Nodes: category names
@@ -253,7 +303,7 @@ class Graph:
     def __init__(self) -> None:
         self.users: Dict[str, User] = {}
         self.categories: Dict[str, Category] = {}
-        self.interaction_graph: nx.DiGraph = nx.DiGraph()
+        self.interaction_graph: nx.MultiDiGraph = nx.MultiDiGraph()
         self.transition_graph: nx.DiGraph = nx.DiGraph()
 
     # ------------------------------------------------------------------
@@ -324,7 +374,10 @@ class Graph:
 
     def _build_interaction_layer(self) -> None:
         """
-        Layer 1: user → product edges for every review.
+        Layer 1: user → product edges for every review (MultiDiGraph).
+
+        Each review creates its own edge, so a user who reviews the same
+        product twice gets two parallel edges.
 
         Node attributes:
           - type: 'user' | 'product'
@@ -334,10 +387,9 @@ class Graph:
         for user in self.users.values():
             self.interaction_graph.add_node(user.user_id, type="user")
             for review in user.all_reviews():
-                if not self.interaction_graph.has_node(review.parent_asin):
-                    self.interaction_graph.add_node(
-                        review.parent_asin, type="product"
-                    )
+                self.interaction_graph.add_node(
+                    review.parent_asin, type="product"
+                )
                 self.interaction_graph.add_edge(
                     user.user_id,
                     review.parent_asin,
@@ -358,8 +410,8 @@ class Graph:
         for cat in self.categories:
             self.transition_graph.add_node(cat)
 
-        # Count transitions per (A, B) pair
-        transition_counts: Dict[Tuple[str, str], int] = {}
+        # Track distinct users per (A, B) pair
+        transition_users: Dict[Tuple[str, str], Set[str]] = {}
 
         for user in self.users.values():
             reviews = user.all_reviews()
@@ -369,12 +421,14 @@ class Graph:
                 for prior_cat in seen_cats:
                     if prior_cat != cat:
                         key = (prior_cat, cat)
-                        transition_counts[key] = transition_counts.get(key, 0) + 1
+                        if key not in transition_users:
+                            transition_users[key] = set()
+                        transition_users[key].add(user.user_id)
                 if cat not in seen_cats:
                     seen_cats.append(cat)
 
-        for (src, dst), count in transition_counts.items():
-            self.transition_graph.add_edge(src, dst, user_count=count)
+        for (src, dst), user_set in transition_users.items():
+            self.transition_graph.add_edge(src, dst, user_count=len(user_set))
 
     # ------------------------------------------------------------------
     # Dunder

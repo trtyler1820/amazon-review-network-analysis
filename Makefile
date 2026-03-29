@@ -13,10 +13,9 @@ test:
 test-all:
 	$(PYTEST) tests/ -v
 
-## Run tests with coverage report
+## Run tests with coverage report (includes integration tests)
 coverage:
-	$(PYTEST) tests/test_models.py tests/test_analysis.py \
-		--cov=graph_logic --cov-report=term-missing -v
+	$(PYTEST) tests/ --cov=graph_logic --cov-report=term-missing -v
 
 ## Run the full data cleaning pipeline
 clean-data:

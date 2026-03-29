@@ -237,6 +237,51 @@ class TestComputeExpansionDifference:
         assert abs(diff - 1.0) < 1e-9
 
 
+    def test_right_censored_users_excluded_from_cohorts(self):
+        """Users entering after MAX_ENTRY_DATE should be excluded from expansion."""
+        from graph_logic.models import MAX_ENTRY_DATE
+        late_offset = (MAX_ENTRY_DATE - BASE_DATE).days + 5
+
+        users: Dict[str, User] = {}
+
+        # Normal Electronics-first user (within window)
+        uid_e = "e_user"
+        u_e = User(uid_e)
+        u_e.add_review(make_review(uid_e, "Electronics", day_offset=0))
+        u_e.add_review(make_review(uid_e, "Video_Games", day_offset=5))
+        users[uid_e] = u_e
+
+        # Late entrant — should be excluded
+        uid_late = "late_user"
+        u_late = User(uid_late)
+        u_late.add_review(make_review(uid_late, "Software", day_offset=late_offset))
+        u_late.add_review(make_review(uid_late, "Video_Games", day_offset=late_offset + 10))
+        users[uid_late] = u_late
+
+        # Without the late user, only e_user exists: cohort_a=1 (E), cohort_not_a=0 → None
+        diff = compute_expansion_difference("Electronics", "Video_Games", users)
+        assert diff is None  # no not-A cohort after censoring
+
+    def test_min_cohort_size_enforced(self):
+        """If a cohort is smaller than min_cohort_size, return None."""
+        users: Dict[str, User] = {}
+        uid = "u1"
+        u = User(uid)
+        u.add_review(make_review(uid, "Electronics", day_offset=0))
+        users[uid] = u
+
+        uid2 = "u2"
+        u2 = User(uid2)
+        u2.add_review(make_review(uid2, "Software", day_offset=0))
+        users[uid2] = u2
+
+        # cohort_a=1 (Electronics), cohort_not_a=1 (Software), min_cohort=100 → None
+        diff = compute_expansion_difference(
+            "Electronics", "Video_Games", users, min_cohort_size=100,
+        )
+        assert diff is None
+
+
 class TestComputeAllExpansionPathways:
     def test_returns_only_high_retention_destinations(self):
         # Set Video_Games as the only high-retention category

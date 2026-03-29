@@ -235,6 +235,27 @@ class TestUserIsRetained:
         ])
         assert user.is_retained("Electronics") is False
 
+    def test_right_censored_user_excluded(self):
+        # User enters after MAX_ENTRY_DATE → not retained (unobservable)
+        from graph_logic.models import MAX_ENTRY_DATE
+        late_offset = (MAX_ENTRY_DATE - BASE_DATE).days + 5  # 5 days past cutoff
+        user = make_user_with_reviews("u1", [
+            make_review(category="Electronics", day_offset=late_offset),
+            make_review(category="Electronics", day_offset=late_offset + 10),
+        ])
+        # With default max_entry_date, this user is excluded
+        assert user.is_retained("Electronics") is False
+        # With censoring disabled, this user IS retained
+        assert user.is_retained("Electronics", max_entry_date=None) is True
+
+    def test_user_before_censoring_cutoff_included(self):
+        # User enters before MAX_ENTRY_DATE → normal retention logic applies
+        user = make_user_with_reviews("u1", [
+            make_review(category="Electronics", day_offset=0),
+            make_review(category="Electronics", day_offset=10),
+        ])
+        assert user.is_retained("Electronics") is True
+
 
 # ---------------------------------------------------------------------------
 # User — reviewed_category_within
@@ -401,6 +422,48 @@ class TestGraphFromDataframe:
         g = Graph.from_dataframe(df)
         assert "Electronics" in g.transition_graph.nodes
         assert "Video_Games" in g.transition_graph.nodes
+
+    def test_transition_graph_counts_distinct_users(self):
+        """User reviewing A→B→A→B should count as 1 user for (A,B) transition."""
+        import pandas as pd
+        rows = []
+        for day, cat in [(0, "Electronics"), (5, "Video_Games"),
+                         (10, "Electronics"), (15, "Video_Games")]:
+            rows.append({
+                "user_id": "u1", "parent_asin": f"P_{cat}_{day}",
+                "asin": f"A_{cat}_{day}",
+                "timestamp": int((BASE_DATE + timedelta(days=day)).timestamp() * 1000),
+                "date": BASE_DATE + timedelta(days=day),
+                "rating": 5.0, "verified_purchase": True,
+                "category_name": cat, "helpful_vote": 0,
+            })
+        g = Graph.from_dataframe(pd.DataFrame(rows))
+        edge_data = g.transition_graph.get_edge_data("Electronics", "Video_Games")
+        assert edge_data is not None
+        assert edge_data["user_count"] == 1  # distinct user, not event count
+
+    def test_multigraph_preserves_duplicate_edges(self):
+        """User reviewing the same product twice should produce 2 edges."""
+        import pandas as pd
+        rows = [
+            {
+                "user_id": "u1", "parent_asin": "P1", "asin": "A1",
+                "timestamp": int(BASE_DATE.timestamp() * 1000),
+                "date": BASE_DATE,
+                "rating": 5.0, "verified_purchase": True,
+                "category_name": "Electronics", "helpful_vote": 0,
+            },
+            {
+                "user_id": "u1", "parent_asin": "P1", "asin": "A1",
+                "timestamp": int((BASE_DATE + timedelta(days=10)).timestamp() * 1000),
+                "date": BASE_DATE + timedelta(days=10),
+                "rating": 3.0, "verified_purchase": True,
+                "category_name": "Electronics", "helpful_vote": 1,
+            },
+        ]
+        g = Graph.from_dataframe(pd.DataFrame(rows))
+        # MultiDiGraph: 2 parallel edges from u1 → P1
+        assert g.interaction_graph.number_of_edges() == 2
 
     def test_repr_does_not_crash(self):
         df = self._make_df()
