@@ -46,7 +46,7 @@ def identify_high_retention_categories(
     eligible = {
         name: cat
         for name, cat in categories.items()
-        if cat.entering_user_count >= min_users
+        if cat.observable_user_count() >= min_users
     }
     if not eligible:
         return set()
@@ -195,8 +195,9 @@ def generate_summary_report(graph: Graph) -> str:
         reverse=True,
     )
     for name, cat in sorted_cats:
+        obs = cat.observable_user_count()
         lines.append(
-            f"  {name:<35} {cat.retention_rate:>6.2%}  ({cat.entering_user_count} users)"
+            f"  {name:<35} {cat.retention_rate:>6.2%}  ({obs} observable users)"
         )
 
     # --- Section 2: High-retention categories ---

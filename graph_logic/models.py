@@ -126,6 +126,30 @@ class User:
         return next(iter(earliest_cats))
 
     # ------------------------------------------------------------------
+    # Observability
+    # ------------------------------------------------------------------
+
+    def is_observable(
+        self,
+        category: str,
+        max_entry_date: Optional[datetime] = MAX_ENTRY_DATE,
+    ) -> bool:
+        """
+        True if this user's first review in `category` falls on or before
+        `max_entry_date`, meaning a full 90-day window can be observed.
+
+        Returns False if the user has no reviews in the category or entered
+        too late.  Pass ``max_entry_date=None`` to treat all users as
+        observable.
+        """
+        if max_entry_date is None:
+            return bool(self.reviews_by_category.get(category))
+        reviews = self.reviews_in(category)
+        if not reviews:
+            return False
+        return reviews[0].date <= max_entry_date
+
+    # ------------------------------------------------------------------
     # Retention
     # ------------------------------------------------------------------
 
@@ -143,10 +167,10 @@ class User:
           - 2 or more reviews
           - on at least 2 distinct calendar days (UTC)
 
-        Right-censoring guard: if `max_entry_date` is set, users whose first
-        review in the category falls *after* that date are considered
-        unobservable (their 90-day window extends beyond the dataset) and this
-        method returns False.  Pass ``max_entry_date=None`` to disable.
+        Right-censoring guard: if `max_entry_date` is set and the user is not
+        observable (first review after cutoff), returns False.  Callers that
+        need to distinguish "not retained" from "not observable" should call
+        ``is_observable()`` first.
         """
         reviews = self.reviews_in(category)
         if len(reviews) < 2:

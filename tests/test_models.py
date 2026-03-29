@@ -344,6 +344,55 @@ class TestCategory:
         cat.add_user(self._make_unretained_user("u2"))
         assert cat.retention_rate == 0.0
 
+    def test_observable_user_count_excludes_late_entrants(self):
+        from graph_logic.models import MAX_ENTRY_DATE
+        late_offset = (MAX_ENTRY_DATE - BASE_DATE).days + 5
+        cat = Category("Electronics")
+        # Observable user (enters within window)
+        cat.add_user(self._make_retained_user("u1"))
+        # Late user (enters after MAX_ENTRY_DATE)
+        cat.add_user(make_user_with_reviews("u_late", [
+            make_review(user_id="u_late", category="Electronics", day_offset=late_offset),
+            make_review(user_id="u_late", category="Electronics", day_offset=late_offset + 10),
+        ]))
+        assert cat.entering_user_count == 2
+        assert cat.observable_user_count() == 1
+
+    def test_observable_user_count_none_disables_filter(self):
+        cat = Category("Electronics")
+        cat.add_user(self._make_retained_user("u1"))
+        assert cat.observable_user_count(max_entry_date=None) == 1
+
+    def test_retention_rate_excludes_unobservable_from_denominator(self):
+        from graph_logic.models import MAX_ENTRY_DATE
+        late_offset = (MAX_ENTRY_DATE - BASE_DATE).days + 5
+        cat = Category("Electronics")
+        # 1 retained observable user
+        cat.add_user(self._make_retained_user("u1"))
+        # 1 unobservable user (should NOT count in denominator)
+        cat.add_user(make_user_with_reviews("u_late", [
+            make_review(user_id="u_late", category="Electronics", day_offset=late_offset),
+            make_review(user_id="u_late", category="Electronics", day_offset=late_offset + 10),
+        ]))
+        # Retention = 1/1 (not 1/2), because late user is excluded
+        assert cat.retention_rate == 1.0
+
+    def test_is_observable(self):
+        from graph_logic.models import MAX_ENTRY_DATE
+        late_offset = (MAX_ENTRY_DATE - BASE_DATE).days + 5
+        # Observable
+        u1 = make_user_with_reviews("u1", [
+            make_review(user_id="u1", category="Electronics", day_offset=0),
+        ])
+        assert u1.is_observable("Electronics") is True
+        # Not observable (late entry)
+        u2 = make_user_with_reviews("u2", [
+            make_review(user_id="u2", category="Electronics", day_offset=late_offset),
+        ])
+        assert u2.is_observable("Electronics") is False
+        # Not observable (no reviews in category)
+        assert u1.is_observable("Video_Games") is False
+
     def test_repr_does_not_crash(self):
         cat = Category("Electronics")
         assert "Electronics" in repr(cat)

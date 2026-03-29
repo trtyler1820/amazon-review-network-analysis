@@ -71,7 +71,7 @@ retention_rate(C) =
 
 ### Definition
 
-An entry category is a **strong expansion pathway** to another category if users whose first reviewed category is A have an **above-baseline probability** of later reviewing products in a high-retention category B within 90 days.
+An entry category is a **positive expansion pathway** to another category if users whose first reviewed category is A have an **above-baseline probability** of later reviewing products in a high-retention category B within 90 days. Users whose global first review falls after `MAX_ENTRY_DATE` (April 2, 2023) are excluded from both cohorts (right-censoring guard).
 
 ### Formula
 
@@ -92,11 +92,11 @@ Where:
 - **A** = entry category (user's first reviewed category)
 - **B** = destination category (must be high-retention category)
 - **Baseline** = P(B within 90d | first ≠ A) = probability for users NOT entering via A
-- **Positive ExpansionDifference** = strong pathway (A leads to above-baseline B engagement)
+- **Positive ExpansionDifference** = above-baseline pathway (A leads to above-baseline B engagement)
 
 ### Calculation Steps
 
-**Example: Is Electronics (A) a strong pathway to Video Games (B)?**
+**Example: Is Electronics (A) a positive pathway to Video Games (B)?**
 
 Assume:
 - Video Games is high-retention (top quartile)
@@ -133,9 +133,10 @@ ExpansionDifference(Electronics → Video_Games) = 24% − 15% = 9%
 ```
 
 **Interpretation:**
-- **+9% positive difference** = Electronics is a **strong expansion pathway to Video Games**
+- **+9% positive difference** = Electronics is a **positive expansion pathway to Video Games**
 - Users entering via Electronics are 9 percentage points MORE likely to explore Video Games than the average user
-- This indicates Electronics → Video Games is a meaningful customer journey pattern
+- This indicates Electronics → Video Games is an above-baseline customer journey pattern
+- *Note*: This is a raw point estimate; statistical significance is not assessed
 
 ### Categorization
 

@@ -138,6 +138,30 @@ class TestIdentifyHighRetentionCategories:
         result = identify_high_retention_categories(cats, min_users=10)
         assert result == {"A", "B", "C", "D"}
 
+    def test_min_users_uses_observable_count(self):
+        """min_users threshold should use observable_user_count, not entering_user_count."""
+        from graph_logic.models import MAX_ENTRY_DATE, Category
+        late_offset = (MAX_ENTRY_DATE - BASE_DATE).days + 5
+
+        # Category with 5 observable users + 30 unobservable late users
+        cat = Category("Test")
+        for i in range(5):
+            cat.add_user(make_retained_user(f"obs_{i}", "Test"))
+        for i in range(30):
+            u = build_user(f"late_{i}", [
+                make_review(f"late_{i}", "Test", day_offset=late_offset),
+                make_review(f"late_{i}", "Test", day_offset=late_offset + 10),
+            ])
+            cat.add_user(u)
+
+        # entering_user_count = 35, but observable = 5
+        assert cat.entering_user_count == 35
+        assert cat.observable_user_count() == 5
+
+        # With min_users=10, this category should NOT qualify (only 5 observable)
+        result = identify_high_retention_categories({"Test": cat}, min_users=10)
+        assert result == set()
+
 
 # ---------------------------------------------------------------------------
 # compute_expansion_difference
@@ -375,3 +399,8 @@ class TestGenerateSummaryReport:
         g = self._make_graph()
         report = generate_summary_report(g)
         assert "Electronics" in report
+
+    def test_report_shows_observable_users(self):
+        g = self._make_graph()
+        report = generate_summary_report(g)
+        assert "observable users" in report
