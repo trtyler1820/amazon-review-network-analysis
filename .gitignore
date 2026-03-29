@@ -36,6 +36,9 @@ coverage.xml
 # Claude internal session state
 .claude/
 
+# SI 564 one-off scripts and output (not part of main project)
+564/
+
 # Jupyter checkpoint files
 .ipynb_checkpoints/
 **/.ipynb_checkpoints/

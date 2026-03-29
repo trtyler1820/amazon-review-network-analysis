@@ -17,6 +17,7 @@ Session logs are stored as individual files for token efficiency. Each session g
 | [2026-03-27_session3c_audit-organization.md](2026-03-27_session3c_audit-organization.md) | 2026-03-27 | Full audit, code fixes, file reorg, log restructure |
 | [2026-03-27_session3d_doc-consistency.md](2026-03-27_session3d_doc-consistency.md) | 2026-03-27 | Doc consistency pass: w26_data→data/raw, HuggingFace URL, CLAUDE.md status, artifact disclaimer |
 | [2026-03-27_session4_phase2-scaffold.md](2026-03-27_session4_phase2-scaffold.md) | 2026-03-27 | Phase 2 scaffold: graph_logic/ + tests/ — 54/54 passing, 92% coverage |
+| [2026-03-29_session5_codex-audit-handoff.md](2026-03-29_session5_codex-audit-handoff.md) | 2026-03-29 | Read-only audit handoff for Claude: Phase 2 correctness fixes, integration test activation, PROJECT_PLAN sync |
 
 ---
 
@@ -48,6 +49,6 @@ Session logs are stored as individual files for token efficiency. Each session g
 
 ## Current Status
 
-- **Phase 1**: Pipeline code complete and verified. Full dataset CSV needs regeneration (current file is sample-only).
-- **Phase 2**: Scaffold complete — `graph_logic/` and `tests/` implemented. 54/54 unit tests passing, 92% coverage.
-- **Next action**: Run `python3 scripts/clean_data.py` (full run), then activate integration tests in `tests/test_integration.py`.
+- **Phase 1**: Full cleaned artifact exists in `data/cleaned/cleaned_reviews.csv`; `docs/data_quality_report.md` reflects a full run dated 2026-03-28.
+- **Phase 2**: Scaffold exists, but metric correctness and validation are not fully closed. Highest-priority blockers are right-censoring, transition counting, and graph edge semantics.
+- **Next action**: Use `logs/2026-03-29_session5_codex-audit-handoff.md` as the implementation brief for Claude, then update tests and docs to match the repaired logic.

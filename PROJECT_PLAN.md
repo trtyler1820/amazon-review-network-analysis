@@ -5,7 +5,7 @@
 **Student**: Tyler Tran
 **Deadline**: April 24, 2026
 **Checkpoint**: April 3, 2026
-**Status**: Active Development
+**Status**: Phase 1 code complete (full CSV pending); Phase 2 scaffold complete (54/54 tests, 92% coverage)
 
 ---
 
@@ -25,8 +25,8 @@ Build an interactive analysis system to understand user retention and cross-cate
 
 | Date | Milestone | Status |
 |------|-----------|--------|
-| April 3, 2026 | **CHECKPOINT**: Phase 1 complete (cleaned dataset ready) | ⏱️ Pending |
-| April 10, 2026 | Phase 2 complete (graph logic & tests working) | ⏱️ Pending |
+| April 3, 2026 | **CHECKPOINT**: Phase 1 complete (cleaned dataset ready) | 🔄 In Progress — code done, full CSV run pending |
+| April 10, 2026 | Phase 2 complete (graph logic & tests working) | 🔄 In Progress — scaffold + unit tests done; integration tests pending CSV |
 | April 17, 2026 | Phase 3 complete (web interface functional) | ⏱️ Pending |
 | April 24, 2026 | Final submission (all phases complete) | ⏱️ Pending |
 
@@ -235,23 +235,24 @@ README.md            - Getting started guide
 ## Progress Tracking
 
 ### Phase 1: Data Cleaning (SI 511)
-- [ ] Data files from `data/raw/` assessed
-- [ ] Data quality issues identified
-- [ ] Cleaning pipeline built and tested
-- [ ] Derived columns created (user first date, days since, sequence)
-- [ ] Cleaned dataset exported (CSV/Parquet)
-- [ ] Quality report generated
-- [ ] Retention pool size validated
+- [x] Data files from `data/raw/` assessed
+- [x] Data quality issues identified
+- [x] Cleaning pipeline built and tested (`scripts/clean_data.py` — verified on 100-record sample)
+- [x] Derived columns created (user first date, days since, sequence)
+- [x] Cleaned dataset exported — `data/cleaned/cleaned_reviews.csv` (sample only; **full run pending**)
+- [x] Quality report generated (`docs/data_quality_report.md`, `docs/phase1_data_integrity_report.md`)
+- [ ] Retention pool size validated (requires full dataset run)
 
 ### Phase 2: Graph Logic & Testing (SI 507)
-- [ ] Graph data structure designed
-- [ ] User, Category, Review, Graph classes implemented
-- [ ] Retention calculation engine built
-- [ ] High-retention categories identified
-- [ ] Expansion pathway analysis implemented
-- [ ] Unit tests written (targeting 80%+ coverage)
-- [ ] Integration tests passing
-- [ ] Summary statistics generated
+- [x] Graph data structure designed
+- [x] User, Category, Review, Graph classes implemented (`graph_logic/models.py`)
+- [x] Retention calculation engine built (`graph_logic/analysis.py`)
+- [x] High-retention categories identification implemented
+- [x] Expansion pathway analysis implemented (conditional probability difference formula)
+- [x] Unit tests written — 54/54 passing, 92% coverage (`tests/test_models.py`, `tests/test_analysis.py`)
+- [ ] Integration tests passing (`tests/test_integration.py` — requires full dataset CSV)
+- [ ] Retention calculations manually verified on 5+ sample users (real data)
+- [ ] Summary statistics generated (requires full dataset)
 
 ### Phase 3: Web Interface (SI 511)
 - [ ] Web framework selected and set up
@@ -311,6 +312,25 @@ README.md            - Getting started guide
 - CONFIRMED categories: Electronics, Video Games, Software, Cell Phones and Accessories (exactly 4)
 - CONFIRMED filtering: verified_purchase = True (document row count impact in Phase 1)
 - Updated detailed plan: /Users/tylertran/.claude/plans/enchanted-weaving-honey.md
+
+[2026-03-25] - Phase 1 Pipeline Implemented & Verified on Sample
+- scripts/clean_data.py completed with full 10-step pipeline
+- Verified on 100-record sample per JSONL file (sample run = 2.52M records output)
+- Full dataset run deferred (43M+ records, ~5GB peak RAM expected)
+
+[2026-03-26] - SI 507 v2 Docs Applied
+- Updated METRICS.md with expansion formula, graph layer definitions
+- docs/ directory organized: data_specs.md, METRICS.md, DECISIONS.md, phase1_data_integrity_report.md
+
+[2026-03-27] - Codex Audit: 7 Critical Fixes Applied to clean_data.py
+- Fixed date boundary (inclusive Jun 30), UTC timestamp handling, null validation, quality checks
+
+[2026-03-27] - Phase 2 Scaffold Complete
+- graph_logic/models.py: User, Category, Review, ReviewGraph classes
+- graph_logic/analysis.py: retention + expansion pathway calculations
+- tests/: test_models.py, test_analysis.py, test_integration.py, conftest.py
+- 54/54 unit tests passing, 92% coverage
+- Integration tests stubbed; activate after full CSV run
 ```
 
 ---
