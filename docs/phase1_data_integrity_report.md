@@ -29,14 +29,14 @@ The cleaned dataset is broadly usable and internally consistent, but there are s
 - Notebook error: Identified but deferred to Phase 3 when web interface is built
 - Hardcoded paths: Documented; acceptable for project structure
 
-**Next Steps:** Re-run cleaning pipeline to generate new DATA_QUALITY_REPORT.md with computed checks.
+**Next Steps:** Re-run cleaning pipeline to generate new data_quality_report.md with computed checks.
 
 ## Scope
 
 Audited artifacts:
 
 - `scripts/clean_data.py`
-- `docs/DATA_QUALITY_REPORT.md`
+- `docs/data_quality_report.md`
 - `PROJECT_PLAN.md`
 - `logs.md`
 - `CLEANED_DATA_EXPLORER.ipynb`
@@ -73,7 +73,7 @@ Excluded from deep inspection:
 - `DATE_END` is set to `datetime(2023, 6, 30)` in `scripts/clean_data.py:58`.
 - Filtering uses `df['date'] <= DATE_END` in `scripts/clean_data.py:165`.
 - This means only `2023-06-30 00:00:00` is included, not the full day.
-- Current output max date is `2023-06-29 23:59:46.366000` in `docs/DATA_QUALITY_REPORT.md:11`.
+- Current output max date is `2023-06-29 23:59:46.366000` in `docs/data_quality_report.md:11`.
 
 **Impact**
 

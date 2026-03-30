@@ -18,17 +18,24 @@ A user is **retained** in a product category if:
 ```
 first_ts(U, C) = min(timestamp) for user U in category C
 
+MAX_ENTRY_DATE = OBSERVATION_END − 90 days = 2023-04-02 00:00:00 UTC
+
+observable(U, C) = 1 if first_ts(U, C) <= MAX_ENTRY_DATE else 0
+
 reviews_90d(U, C) =
   { r | user_id(r)=U AND category(r)=C AND first_ts(U,C) <= ts(r) <= first_ts(U,C) + 90 days }
 
 n_reviews_90d(U, C) = |reviews_90d(U, C)|
 n_days_90d(U, C) = number of distinct calendar dates in reviews_90d(U, C)
 
-is_retained(U, C) = 1 if n_reviews_90d(U, C) >= 2 AND n_days_90d(U, C) >= 2 else 0
+is_retained(U, C) = 1 if observable(U,C)=1 AND n_reviews_90d(U,C) >= 2 AND n_days_90d(U,C) >= 2 else 0
 
 retention_rate(C) =
-  SUM(is_retained(U, C)) / COUNT(users with at least one review in C)
+  SUM(is_retained(U, C) for U where observable(U, C) = 1)
+  / COUNT(U where observable(U, C) = 1)
 ```
+
+**Observable user**: A user U is observable in category C if their first review in C falls on or before `MAX_ENTRY_DATE`. Users entering after this date cannot complete a full 90-day window before the dataset ends and are excluded from both numerator and denominator.
 
 ### Calculation Steps
 
@@ -45,8 +52,8 @@ retention_rate(C) =
 4. **Check retention criteria**: 2+ reviews on 2+ distinct days?
    - User A: 4 reviews on 3 distinct days → ✓ **RETAINED**
 
-5. **Aggregate**: Count all retained users per category
-   - Electronics: 150 retained users / 1000 total users = **15% retention rate**
+5. **Aggregate**: Count retained users among observable users per category
+   - Electronics: 150 retained users / 1000 observable users = **15% retention rate**
 
 ### Key Notes
 
@@ -154,7 +161,7 @@ ExpansionDifference(Electronics → Video_Games) = 24% − 15% = 9%
 
 A category is classified as **high-retention** if:
 - Its retention rate falls in the **top quartile** of all observed category retention rates
-- AND it has at least a **minimum threshold of entering users** (e.g., 30+)
+- AND it has at least a **minimum threshold of observable users** (e.g., 30+)
 
 ### Calculation
 
@@ -167,16 +174,16 @@ A category is classified as **high-retention** if:
    - If category count is small (e.g., 4 categories), document tie behavior explicitly.
 
 3. **Apply minimum user threshold**
-   - Filter out categories with < 30 entering users
-   - Example: If Software only has 15 entering users, exclude it from high-retention pool
+   - Filter out categories with < 30 observable users
+   - Example: If Software only has 15 observable users, exclude it from high-retention pool
 
 4. **Result**: High-retention categories used for expansion pathway analysis
    - These become the destination categories (B) in expansion formulas
 
 ### Example
 
-| Category | Retention Rate | Entering Users | High-Retention? |
-|----------|----------------|----------------|-----------------|
+| Category | Retention Rate | Observable Users | High-Retention? |
+|----------|----------------|------------------|-----------------|
 | Cell_Phones | 22% | 150 | ✓ Yes (top quartile, 150 > 30) |
 | Electronics | 18% | 200 | ✓ Yes (top quartile, 200 > 30) |
 | Video_Games | 12% | 80 | ✗ No (below top quartile) |
@@ -202,17 +209,17 @@ A category is classified as **high-retention** if:
 **Step 1: Calculate per-category retention rates**
 
 For each category, count:
-- Total users who reviewed in that category
+- Observable users (first review on or before MAX_ENTRY_DATE = 2023-04-02)
 - Users retained (2+ reviews on 2+ distinct days within 90d of first review)
-- Retention rate = retained / total per category
+- Retention rate = retained / observable per category
 
 Result: Ordered list of retention rates by category.
 
-**Step 2: Identify high-retention categories (top quartile + min 30 users)**
+**Step 2: Identify high-retention categories (top quartile + min 30 observable users)**
 
 From the retention rates:
 - Determine 75th percentile cutoff
-- Filter categories with ≥ 30 entering users
+- Filter categories with ≥ 30 observable users
 - Result: Set of high-retention categories (destination categories for expansion analysis)
 
 ### Expansion Pathway Analysis (Process)
@@ -232,10 +239,10 @@ From the retention rates:
 7. Calculate ExpansionDifference(A → B) = P(B | first = A) − P(B | first ≠ A)
 
 **Interpretation:**
-- **Positive difference** (+5% or more) = A is a strong pathway to B
-- **Neutral/Negative difference** (≤ +5%) = Not a strong pathway
+- **Positive difference** (> 0) = A is a positive expansion pathway to B
+- **Neutral/Negative difference** (≤ 0) = Not a positive pathway
 
-Result: Ranked list of expansion pathways by strength.
+Result: Ranked list of expansion pathways.
 
 ---
 

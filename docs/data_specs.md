@@ -47,7 +47,7 @@ The cleaning pipeline applies filters in sequence to produce a final dataset of 
 **Filter 1: verified_purchase = True**
 - **Rationale**: Ensures analysis uses only actual buyers, not just reviewers or deal hunters
 - **Impact**: Removes unverified reviews (often spam, complaints, affiliate links)
-- **Result**: Row counts are run-dependent (full run vs sample run). See `docs/DATA_QUALITY_REPORT.md` for current counts.
+- **Result**: Row counts are run-dependent (full run vs sample run). See `docs/data_quality_report.md` for current counts.
 - **Note**: Proxy limitation - verified_purchase status is user self-reported, may not be 100% accurate
 
 **Filter 2: Date Range (January 1, 2023 - June 30, 2023)**
@@ -85,7 +85,7 @@ The cleaning pipeline applies filters in sequence to produce a final dataset of 
   - Key = (user_id, parent_asin, timestamp)
   - Keep first occurrence, remove subsequent exact duplicates
   - **Important**: Multiple reviews on same day are preserved (different timestamps)
-- **Impact**: Run-dependent. Check `docs/DATA_QUALITY_REPORT.md` for current counts
+- **Impact**: Run-dependent. Check `docs/data_quality_report.md` for current counts
 - **Note**: This is deduplication at exact timestamp level, NOT same-day level
 
 ### Final Output (Run-Dependent)
@@ -95,7 +95,7 @@ The checked-in cleaned dataset may be produced from either:
 - a **sample run** (`python3 scripts/clean_data.py --sample-size N`).
 
 For current record counts, category coverage, and date range, use:
-- `docs/DATA_QUALITY_REPORT.md` (authoritative)
+- `docs/data_quality_report.md` (authoritative)
 - `wc -l data/cleaned/cleaned_reviews.csv` (quick row check)
 
 ---
@@ -144,7 +144,7 @@ For current record counts, category coverage, and date range, use:
 
 ### Validation Checks (Run-Dependent)
 
-Validation results are computed by the cleaning pipeline and written to `docs/DATA_QUALITY_REPORT.md`.
+Validation results are computed by the cleaning pipeline and written to `docs/data_quality_report.md`.
 Do not treat hardcoded counts in this document as authoritative.
 
 ### Data Distribution (Run-Dependent)
@@ -233,7 +233,7 @@ python3 scripts/clean_data.py --output-dir /custom/path/data/cleaned
 - Encoding: UTF-8
 
 **Quality Report**:
-- Location: `docs/DATA_QUALITY_REPORT.md`
+- Location: `docs/data_quality_report.md`
 - Contents: Row counts at each filtering step, validation results
 - Auto-generated with computed checks
 
@@ -272,10 +272,10 @@ To regenerate cleaned dataset from raw files:
 ```bash
 source venv/bin/activate
 python3 scripts/clean_data.py
-# Output: data/cleaned/cleaned_reviews.csv + docs/DATA_QUALITY_REPORT.md
+# Output: data/cleaned/cleaned_reviews.csv + docs/data_quality_report.md
 ```
 
-Expected output size/counts are run-dependent. Verify against `docs/DATA_QUALITY_REPORT.md`.
+Expected output size/counts are run-dependent. Verify against `docs/data_quality_report.md`.
 
 ---
 
@@ -285,7 +285,7 @@ Expected output size/counts are run-dependent. Verify against `docs/DATA_QUALITY
 |-----------|----------|---------|
 | SI 507 PDF | `docs/course_specs/SI 507.pdf` | Course requirements, metric definitions |
 | Metrics Documentation | `docs/METRICS.md` | Retention & expansion formulas |
-| Quality Report | `docs/DATA_QUALITY_REPORT.md` | Filtering statistics & validation results |
+| Quality Report | `docs/data_quality_report.md` | Filtering statistics & validation results |
 | Cleaning Script | `scripts/clean_data.py` | Implementation of filtering pipeline |
 | CLAUDE.md | Project root | Technical guidance & constraints |
 | Raw Data Source | `data/raw/` | Downloaded JSONL files (read-only) |

@@ -60,7 +60,9 @@ A user is **retained** in a category if:
 - Within 90 days of their first review in that category
 - They post 2+ reviews on at least 2 distinct days
 
-**Retention Rate** = retained_users / total_users_in_category
+**Retention Rate** = retained_observable_users / total_observable_users_in_category
+
+(Observable = first review in category on or before MAX_ENTRY_DATE = 2023-04-02; right-censored users excluded.)
 
 ### Expansion Pathway
 An entry category is a strong expansion pathway if users whose first reviewed category is A have an above-baseline probability of later reviewing a high-retention category B within 90 days.
@@ -162,7 +164,7 @@ Categories in the top quartile by retention rate (with minimum 30+ users) - idea
 **Timeline**: April 18 → April 24, 2026
 **Objectives**:
 - [ ] Organize code structure and clean up
-- [ ] Complete all documentation (README, DATA.md, METRICS.md)
+- [ ] Complete all documentation (README, data_specs.md, METRICS.md)
 - [ ] Run full test suite
 - [ ] Performance optimization if needed
 - [ ] Final code review
@@ -221,7 +223,7 @@ README.md            - Getting started guide
 ✓ OOP design with User, Category, Review, Graph classes (SI 507 requirement)
 ✓ Real data analysis (Amazon reviews filtered by verified_purchase = true)
 ✓ 80%+ test coverage with passing unit/integration tests
-✓ Complete documentation (DATA.md, METRICS.md, README)
+✓ Complete documentation (data_specs.md, METRICS.md, README)
 ✓ Meets SI 507 final project requirements:
   - Graph/network structure ✓
   - Object-oriented design ✓
@@ -267,7 +269,7 @@ README.md            - Getting started guide
 
 ### Phase 4: Finalization
 - [ ] All code organized and cleaned up
-- [ ] Documentation complete (DATA.md, METRICS.md, README)
+- [ ] Documentation complete (data_specs.md, METRICS.md, README)
 - [ ] Full test suite passing
 - [ ] Performance optimized
 - [ ] Final review done

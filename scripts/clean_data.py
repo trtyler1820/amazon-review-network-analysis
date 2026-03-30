@@ -497,7 +497,7 @@ class DataCleaner:
 
         # Save report (to docs directory)
         self.docs_dir.mkdir(parents=True, exist_ok=True)
-        report_file = self.docs_dir / "DATA_QUALITY_REPORT.md"
+        report_file = self.docs_dir / "data_quality_report.md"
         with open(report_file, 'w') as f:
             f.write(report_text)
         logger.info(f"Quality report saved to: {report_file}")
