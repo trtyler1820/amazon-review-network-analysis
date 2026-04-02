@@ -5,7 +5,7 @@
 **Student**: Tyler Tran
 **Deadline**: April 24, 2026
 **Checkpoint**: April 3, 2026
-**Status**: Phase 1 complete. Phase 2 complete (83/83 tests passing). Phase 3 next.
+**Status**: Phase 1 complete. Phase 2 complete (83/83 tests passing). ML layer added (107/107 tests). Phase 3 next.
 
 ---
 
@@ -18,6 +18,8 @@ Build an interactive analysis system to understand user retention and cross-cate
 - Which categories effectively retain users?
 - Which entry categories lead to cross-category exploration?
 - Which categories attract but fail to retain users?
+- What behavioral signals predict whether a new user will return? *(ML: retention prediction)*
+- What distinct reviewer archetypes exist in the data? *(ML: user segmentation)*
 
 ---
 
@@ -27,6 +29,7 @@ Build an interactive analysis system to understand user retention and cross-cate
 |------|-----------|--------|
 | April 3, 2026 | **CHECKPOINT**: Phase 1 complete (cleaned dataset ready) | ✅ Complete — 2,523,881 rows cleaned |
 | April 10, 2026 | Phase 2 complete (graph logic & tests working) | ✅ Complete — 83/83 tests, right-censoring, spot-checks |
+| April 10, 2026 | ML layer added (retention prediction + user clustering) | ✅ Complete — 41 new tests, 107/107 total |
 | April 17, 2026 | Phase 3 complete (web interface functional) | ⏱️ Pending |
 | April 24, 2026 | Final submission (all phases complete) | ⏱️ Pending |
 
@@ -178,12 +181,20 @@ Categories in the top quartile by retention rate (with minimum 30+ users) - idea
   __init__.py
   models.py          - User, Category, Review, Graph classes
   analysis.py        - Retention & expansion calculations
+/ml/
+  __init__.py
+  features.py        - Feature engineering (Graph → DataFrames)
+  retention_model.py - Logistic regression + random forest pipeline
+  clustering.py      - K-means user segmentation pipeline
 /web/
   app.py             - Streamlit dashboard
 /tests/
   test_models.py
   test_analysis.py
   test_integration.py
+  test_ml_features.py
+  test_ml_retention.py
+  test_ml_clustering.py
 /docs/
   data_specs.md      - Data spec & cleaning notes
   METRICS.md         - Retention/expansion definitions
@@ -258,6 +269,22 @@ README.md            - Getting started guide
 - [x] Integration tests — 23/23 passing (`tests/test_integration.py`)
 - [x] Retention calculations manually verified on 5 real users (spot-checks)
 - [x] Summary report generated on full dataset
+
+### ML Layer (Extends Phase 2)
+- [x] Feature engineering from Graph objects (`ml/features.py`)
+  - `build_retention_features(graph, category)` — 12 features per user-category pair + retained label
+  - `build_retention_features_all(graph)` — cross-category with one-hot encoding
+  - `build_user_features(graph, min_reviews)` — 12 global features per user for clustering
+- [x] Retention prediction (`ml/retention_model.py`)
+  - Logistic regression + random forest classifiers
+  - StandardScaler, stratified split, class_weight='balanced'
+  - ROC AUC primary metric; feature importance output
+- [x] User segmentation (`ml/clustering.py`)
+  - MiniBatchKMeans (scales to 1.8M users)
+  - Elbow + silhouette analysis with subsampling (200K) for k selection
+  - Human-readable cluster labels: One-and-done, Casual reviewer, Loyal returner, Power reviewer, Category explorer, Power explorer
+- [x] Tests — 41/41 passing (`tests/test_ml_features.py`, `tests/test_ml_retention.py`, `tests/test_ml_clustering.py`)
+- [x] Notebook cells 38–49 added to `notebooks/CLEANED_DATA_EXPLORER.ipynb`
 
 ### Phase 3: Web Interface (SI 511)
 - [ ] Web framework selected and set up
@@ -336,6 +363,15 @@ README.md            - Getting started guide
 - tests/: test_models.py, test_analysis.py, test_integration.py, conftest.py
 - 54/54 unit tests passing, 92% coverage
 - Integration tests stubbed; activate after full CSV run
+
+[2026-04-02] - ML Layer Added (ml/ package)
+- New ml/ package: features.py, retention_model.py, clustering.py, __init__.py
+- Retention prediction pipeline: LR + RF classifiers; StandardScaler; stratified split; class_weight='balanced'; ROC AUC primary metric
+- User segmentation pipeline: MiniBatchKMeans (scales to 1.8M users); elbow + silhouette k selection with 200K subsampling; 6 cluster archetypes (One-and-done, Casual reviewer, Loyal returner, Power reviewer, Category explorer, Power explorer)
+- Feature engineering: 12 retention features per user-category pair; 12 global features per user for clustering
+- 41 new tests; 107/107 total passing (test_ml_features.py, test_ml_retention.py, test_ml_clustering.py)
+- 12 notebook cells appended (cells 38-49) for ML analysis and visualizations
+- Fixed notebook datetime parsing bugs: format='ISO8601', timezone-aware date comparisons
 ```
 
 ---
