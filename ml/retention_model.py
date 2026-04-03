@@ -10,7 +10,7 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, roc_auc_score, roc_curve
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GroupShuffleSplit, train_test_split
 from sklearn.preprocessing import StandardScaler
 
 
@@ -45,9 +45,35 @@ def train_retention_model(
     y = features_df["retained"].astype(int).values
     feature_names = feature_cols
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, stratify=y, random_state=random_state,
-    )
+    # Guard: need both classes with enough examples to split
+    unique_classes = np.unique(y)
+    if len(unique_classes) < 2:
+        raise ValueError(
+            f"Cannot train: only one class present (label={unique_classes[0]}). "
+            "Need both retained and non-retained users."
+        )
+    minority_count = min(np.sum(y == c) for c in unique_classes)
+    min_test = max(1, int(np.ceil(len(y) * test_size)))
+    if minority_count < 2 or len(y) < max(4, int(np.ceil(1 / test_size)) + 1):
+        raise ValueError(
+            f"Cannot train: too few examples (n={len(y)}, minority={minority_count}). "
+            "Need enough data for a meaningful train/test split."
+        )
+
+    # Use group-aware split when user_id is present to prevent the same
+    # user from appearing in both train and test (leakage).
+    if "user_id" in features_df.columns:
+        groups = features_df["user_id"].values
+        gss = GroupShuffleSplit(
+            n_splits=1, test_size=test_size, random_state=random_state,
+        )
+        train_idx, test_idx = next(gss.split(X, y, groups))
+        X_train, X_test = X[train_idx], X[test_idx]
+        y_train, y_test = y[train_idx], y[test_idx]
+    else:
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, stratify=y, random_state=random_state,
+        )
 
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
@@ -67,14 +93,18 @@ def train_retention_model(
 
     model.fit(X_train_scaled, y_train)
     y_pred = model.predict(X_test_scaled)
-    y_prob = model.predict_proba(X_test_scaled)[:, 1]
 
     if model_type == "logistic_regression":
         importances = np.abs(model.coef_[0])
     else:
         importances = model.feature_importances_
 
-    auc = roc_auc_score(y_test, y_prob)
+    # Handle case where test set ends up single-class after split
+    y_prob = model.predict_proba(X_test_scaled)[:, 1]
+    if len(np.unique(y_test)) < 2:
+        auc = float("nan")
+    else:
+        auc = roc_auc_score(y_test, y_prob)
 
     return {
         "model": model,

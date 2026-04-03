@@ -4,8 +4,9 @@
 numpy==2.4.1
 pandas==2.3.3
 networkx==3.6.1
-polars==1.37.1           # fallback if pandas hits RAM limits on 43GB dataset
+polars==1.37.1           # vectorized feature engineering in ml/features.py
 polars-runtime-32==1.37.1
+pyarrow==23.0.1          # required by polars for to_pandas() conversion
 
 # -----------------------------------------------------------------------
 # Data download

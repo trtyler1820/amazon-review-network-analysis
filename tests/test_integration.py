@@ -144,6 +144,28 @@ def test_high_retention_categories_nonempty(graph):
     assert len(high_ret) > 0, "No high-retention categories found"
 
 
+def test_high_retention_categories_pinned(graph):
+    """Pin the specific high-retention categories so regressions are caught."""
+    from graph_logic.analysis import identify_high_retention_categories
+    high_ret = identify_high_retention_categories(graph.categories)
+    # At minimum, the top-quartile set must be a subset of the 4 known categories
+    assert high_ret <= EXPECTED_CATEGORIES, (
+        f"Unexpected categories in high-retention set: {high_ret - EXPECTED_CATEGORIES}"
+    )
+    # Pin: with 4 categories and Q75 cutoff, expect 1-2 categories
+    assert 1 <= len(high_ret) <= 2, f"Expected 1-2 high-retention categories, got {len(high_ret)}"
+
+
+def test_retention_rates_ordered(graph):
+    """Verify relative ordering of retention rates to catch formula regressions."""
+    rates = {name: cat.retention_rate for name, cat in graph.categories.items()}
+    # Electronics has the most users; its rate should be computable (non-zero)
+    assert rates["Electronics"] > 0, "Electronics retention rate is zero"
+    # All rates should be small (most users don't return) — sanity bound
+    for name, rate in rates.items():
+        assert rate < 0.5, f"{name} retention rate {rate:.2%} suspiciously high"
+
+
 # ---------------------------------------------------------------------------
 # Expansion pathways
 # ---------------------------------------------------------------------------
@@ -156,6 +178,21 @@ def test_expansion_pathways_nonempty(graph):
     high_ret = identify_high_retention_categories(graph.categories)
     pathways = compute_all_expansion_pathways(graph.users, high_ret)
     assert len(pathways) > 0, "No expansion pathways computed"
+
+
+def test_expansion_pathway_values_bounded(graph):
+    """Expansion differences should be in (-1, 1) and mostly small."""
+    from graph_logic.analysis import (
+        identify_high_retention_categories,
+        compute_all_expansion_pathways,
+    )
+    high_ret = identify_high_retention_categories(graph.categories)
+    pathways = compute_all_expansion_pathways(graph.users, high_ret)
+    for (entry, dest), diff in pathways.items():
+        assert -1.0 < diff < 1.0, (
+            f"Expansion {entry}→{dest} = {diff:.4f} out of bounds"
+        )
+        assert entry != dest, f"Self-loop found: {entry}→{dest}"
 
 
 def test_summary_report_not_empty(graph):

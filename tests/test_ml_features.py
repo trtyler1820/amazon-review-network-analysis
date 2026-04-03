@@ -93,10 +93,19 @@ class TestBuildRetentionFeatures:
 
     def test_only_observable_users(self):
         g = _small_graph()
-        # With default MAX_ENTRY_DATE (2023-04-02), all our test users
-        # started on BASE_DATE (2023-01-05) which is before cutoff
+        # With max_entry_date=None, all users are included
         df = build_retention_features(g, "Electronics", max_entry_date=None)
         assert len(df) == 4  # u1, u2, u3, u5 all in Electronics
+
+    def test_censoring_excludes_late_entrants(self):
+        """Users whose first review is after max_entry_date should be excluded."""
+        g = _small_graph()
+        # u5 enters Electronics on day 80 (BASE_DATE + 80d = 2023-03-26).
+        # Set cutoff before that to exclude u5.
+        cutoff = BASE_DATE + timedelta(days=30)  # 2023-02-04
+        df = build_retention_features(g, "Electronics", max_entry_date=cutoff)
+        assert len(df) == 3  # u1, u2, u3 — u5 excluded (entered day 80)
+        assert "u5" not in df["user_id"].values
 
     def test_retained_label_matches(self):
         g = _small_graph()

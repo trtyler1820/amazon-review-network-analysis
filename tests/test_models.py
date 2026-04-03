@@ -514,6 +514,67 @@ class TestGraphFromDataframe:
         # MultiDiGraph: 2 parallel edges from u1 → P1
         assert g.interaction_graph.number_of_edges() == 2
 
+    def test_tied_timestamp_no_arbitrary_transition(self):
+        """Reviews in different categories at the same timestamp should NOT
+        create a transition edge — the direction would be arbitrary."""
+        import pandas as pd
+        same_ts = BASE_DATE
+        rows = [
+            {
+                "user_id": "u1", "parent_asin": "P1", "asin": "A1",
+                "timestamp": int(same_ts.timestamp() * 1000),
+                "date": same_ts,
+                "rating": 5.0, "verified_purchase": True,
+                "category_name": "Electronics", "helpful_vote": 0,
+            },
+            {
+                "user_id": "u1", "parent_asin": "P2", "asin": "A2",
+                "timestamp": int(same_ts.timestamp() * 1000),
+                "date": same_ts,
+                "rating": 4.0, "verified_purchase": True,
+                "category_name": "Video_Games", "helpful_vote": 0,
+            },
+        ]
+        g = Graph.from_dataframe(pd.DataFrame(rows))
+        # No transition in either direction — timestamps are tied
+        assert not g.transition_graph.has_edge("Electronics", "Video_Games")
+        assert not g.transition_graph.has_edge("Video_Games", "Electronics")
+
+    def test_tied_timestamp_prior_categories_still_transition(self):
+        """A category seen at an earlier timestamp should still create
+        transitions to categories first seen at a later (tied) timestamp."""
+        import pandas as pd
+        rows = [
+            {
+                "user_id": "u1", "parent_asin": "P1", "asin": "A1",
+                "timestamp": int(BASE_DATE.timestamp() * 1000),
+                "date": BASE_DATE,
+                "rating": 5.0, "verified_purchase": True,
+                "category_name": "Electronics", "helpful_vote": 0,
+            },
+            {
+                "user_id": "u1", "parent_asin": "P2", "asin": "A2",
+                "timestamp": int((BASE_DATE + timedelta(days=5)).timestamp() * 1000),
+                "date": BASE_DATE + timedelta(days=5),
+                "rating": 4.0, "verified_purchase": True,
+                "category_name": "Video_Games", "helpful_vote": 0,
+            },
+            {
+                "user_id": "u1", "parent_asin": "P3", "asin": "A3",
+                "timestamp": int((BASE_DATE + timedelta(days=5)).timestamp() * 1000),
+                "date": BASE_DATE + timedelta(days=5),
+                "rating": 3.0, "verified_purchase": True,
+                "category_name": "Software", "helpful_vote": 0,
+            },
+        ]
+        g = Graph.from_dataframe(pd.DataFrame(rows))
+        # Electronics (day 0) → Video_Games and Software (both day 5)
+        assert g.transition_graph.has_edge("Electronics", "Video_Games")
+        assert g.transition_graph.has_edge("Electronics", "Software")
+        # Video_Games ↔ Software should NOT have edges (tied at day 5)
+        assert not g.transition_graph.has_edge("Video_Games", "Software")
+        assert not g.transition_graph.has_edge("Software", "Video_Games")
+
     def test_repr_does_not_crash(self):
         df = self._make_df()
         g = Graph.from_dataframe(df)

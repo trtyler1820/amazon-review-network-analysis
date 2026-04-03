@@ -428,8 +428,12 @@ class Graph:
         Layer 2: category → category transition edges.
 
         An edge A → B exists when at least one user reviewed a product in
-        category A and later reviewed a product in category B (chronologically).
+        category A and *strictly later* reviewed a product in category B.
         Edge weight = number of distinct users making that transition.
+
+        Reviews sharing the same timestamp are batched together: transitions
+        are only recorded from categories seen at earlier timestamps, not
+        between categories that co-occur at the same instant (ambiguous order).
         """
         for cat in self.categories:
             self.transition_graph.add_node(cat)
@@ -438,18 +442,30 @@ class Graph:
         transition_users: Dict[Tuple[str, str], Set[str]] = {}
 
         for user in self.users.values():
-            reviews = user.all_reviews()
+            reviews = user.all_reviews()  # sorted by date
             seen_cats: List[str] = []
-            for review in reviews:
-                cat = review.category_name
-                for prior_cat in seen_cats:
-                    if prior_cat != cat:
-                        key = (prior_cat, cat)
-                        if key not in transition_users:
-                            transition_users[key] = set()
-                        transition_users[key].add(user.user_id)
-                if cat not in seen_cats:
-                    seen_cats.append(cat)
+            i = 0
+            while i < len(reviews):
+                # Collect all reviews at the same timestamp
+                current_ts = reviews[i].date
+                batch_cats: Set[str] = set()
+                while i < len(reviews) and reviews[i].date == current_ts:
+                    batch_cats.add(reviews[i].category_name)
+                    i += 1
+
+                # Only create transitions from previously-seen categories
+                new_cats = batch_cats - set(seen_cats)
+                for new_cat in new_cats:
+                    for prior_cat in seen_cats:
+                        if prior_cat != new_cat:
+                            key = (prior_cat, new_cat)
+                            if key not in transition_users:
+                                transition_users[key] = set()
+                            transition_users[key].add(user.user_id)
+
+                for cat in sorted(new_cats):
+                    if cat not in seen_cats:
+                        seen_cats.append(cat)
 
         for (src, dst), user_set in transition_users.items():
             self.transition_graph.add_edge(src, dst, user_count=len(user_set))
