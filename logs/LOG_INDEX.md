@@ -21,6 +21,7 @@ Session logs are stored as individual files for token efficiency. Each session g
 | [2026-03-29_session5b_phase2-codex-fixes.md](2026-03-29_session5b_phase2-codex-fixes.md) | 2026-03-29 | Phase 2 activation: Codex fixes, right-censoring, 83/83 tests, 94% coverage |
 | [2026-04-02_session6_ml-layer.md](2026-04-02_session6_ml-layer.md) | 2026-04-02 | ML layer added: retention prediction + user clustering, 41 new tests, 107/107 total, 12 notebook cells |
 | [2026-04-02_session6b_polars-audit-fixes.md](2026-04-02_session6b_polars-audit-fixes.md) | 2026-04-02 | Polars/Joblib refactor for ml/features.py, fixed 6 audit findings (tied timestamps, user leakage, degenerate labels, etc.), 139/139 tests |
+| [2026-04-02_session7_phase3-streamlit.md](2026-04-02_session7_phase3-streamlit.md) | 2026-04-02 | Phase 3: Streamlit dashboard web/app.py — 5 pages (rankings, filter, expansion, detail, ML), streamlit+plotly installed |
 
 ---
 
@@ -56,4 +57,5 @@ Session logs are stored as individual files for token efficiency. Each session g
 - **Phase 1**: Complete. Full cleaned dataset: 2,523,881 rows, 1,832,347 users, 369,782 products.
 - **Phase 2**: Complete. All Codex audit findings implemented. 83/83 tests passing, 94% coverage. Right-censoring, MultiDiGraph, transition fix, 5 spot-checks verified.
 - **ML Layer**: Complete. `ml/` package with Polars/Joblib refactor. 6 audit findings fixed (tied timestamps, user leakage, degenerate labels, censoring tests, pinned integration assertions). 139/139 tests passing.
-- **Next action**: Phase 3 — build Streamlit web dashboard with 4+ interaction modes.
+- **Phase 3**: Complete. `web/app.py` implemented — 5 pages (Category Rankings, Category Filter, Expansion Pathways, Category Detail, ML Insights). streamlit==1.56.0 and plotly==6.6.0 installed.
+- **Next action**: Phase 4 — finalize docs, clean up, full test suite check. Deadline April 24, 2026.
