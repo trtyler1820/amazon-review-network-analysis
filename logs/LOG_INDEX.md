@@ -20,6 +20,7 @@ Session logs are stored as individual files for token efficiency. Each session g
 | [2026-03-29_session5_codex-audit-handoff.md](2026-03-29_session5_codex-audit-handoff.md) | 2026-03-29 | Read-only audit handoff for Claude: Phase 2 correctness fixes, integration test activation, PROJECT_PLAN sync |
 | [2026-03-29_session5b_phase2-codex-fixes.md](2026-03-29_session5b_phase2-codex-fixes.md) | 2026-03-29 | Phase 2 activation: Codex fixes, right-censoring, 83/83 tests, 94% coverage |
 | [2026-04-02_session6_ml-layer.md](2026-04-02_session6_ml-layer.md) | 2026-04-02 | ML layer added: retention prediction + user clustering, 41 new tests, 107/107 total, 12 notebook cells |
+| [2026-04-02_session6b_polars-audit-fixes.md](2026-04-02_session6b_polars-audit-fixes.md) | 2026-04-02 | Polars/Joblib refactor for ml/features.py, fixed 6 audit findings (tied timestamps, user leakage, degenerate labels, etc.), 139/139 tests |
 
 ---
 
@@ -37,7 +38,7 @@ Session logs are stored as individual files for token efficiency. Each session g
 |------|-------|--------|-------|
 | Apr 3, 2026 | Phase 1 (Data Cleaning) | ✅ Complete | 2,523,881 rows cleaned |
 | Apr 10, 2026 | Phase 2 (Graph Logic) | ✅ Complete | 83/83 tests, 94% coverage |
-| Apr 2, 2026 | ML Layer | ✅ Complete | 107/107 tests; ml/ package with retention + clustering |
+| Apr 2, 2026 | ML Layer | ✅ Complete | 139/139 tests; Polars/Joblib refactor, 6 audit fixes |
 | Apr 17, 2026 | Phase 3 (Web Interface) | Pending | 4+ interaction modes required |
 | Apr 24, 2026 | Phase 4 (Finalization) | Pending | Final submission deadline |
 
@@ -54,5 +55,5 @@ Session logs are stored as individual files for token efficiency. Each session g
 
 - **Phase 1**: Complete. Full cleaned dataset: 2,523,881 rows, 1,832,347 users, 369,782 products.
 - **Phase 2**: Complete. All Codex audit findings implemented. 83/83 tests passing, 94% coverage. Right-censoring, MultiDiGraph, transition fix, 5 spot-checks verified.
-- **ML Layer**: Complete. `ml/` package added (features.py, retention_model.py, clustering.py). 41 new tests, 107/107 total. 12 notebook cells (38–49) appended for ML analysis. Notebook datetime parsing bugs fixed.
+- **ML Layer**: Complete. `ml/` package with Polars/Joblib refactor. 6 audit findings fixed (tied timestamps, user leakage, degenerate labels, censoring tests, pinned integration assertions). 139/139 tests passing.
 - **Next action**: Phase 3 — build Streamlit web dashboard with 4+ interaction modes.
