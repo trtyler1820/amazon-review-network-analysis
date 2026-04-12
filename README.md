@@ -1,357 +1,196 @@
-# Amazon Reviews Analysis: User Retention & Expansion Patterns
+# Amazon Review Network Analysis
 
-## Intro
-Amazon review data offers a public record of user engagement with products over time. By treating reviews as a proxy for product interaction, this project analyzes which product categories are strong entry points for users, which categories are associated with repeat engagement, and which early product paths lead users into broader downstream category exploration.
+A full-stack analytics system that models user retention and cross-category expansion patterns from 2.5M Amazon product reviews, combining graph-based behavioral analysis, semantic search over review text, and an interactive dashboard.
 
-## Objective
-
-Using a subset of the [UCSD Amazon reviews dataset](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023), I built a temporal user-product interaction model to analyze which product categories are strongest at retaining user engagement and which entry categories are most associated with later expansion into other high-value categories. The goal is to frame the analysis as an exploration of the data to support product growth opportunities.
-
-## Business / Product Questions
-
-- Which product categories appear to be the highest-value candidates for further strategic investment?
-- Which product categories are the strongest user entry points?
-- Which categories attract many first-time reviewers, but fail to retain them?
-- Which first reviewed categories are most associated with later expansion into high-retention categories?
-
-**Note:** This analysis uses a 6-month snapshot of Amazon reviews from 2023. The findings are illustrative of the methodology, not definitive claims about category performance.
+> [Pre-recorded demo walkthrough](#) <!-- TODO: Replace with video link -->
 
 ---
 
-## Quick Start
+## Overview
 
-### Installation
+When a user leaves their first Amazon review, what happens next? Do they come back to the same category? Do they branch out into others?
 
-1. **Clone/navigate to project:**
-```bash
-cd /Users/tylertran/Documents/umich/courses/w26_project
+This project treats reviews as a proxy for product engagement and builds a temporal model to answer:
+
+- **Retention**: Which product categories keep users engaged beyond a single interaction?
+- **Expansion**: Which entry categories lead users into other high-retention categories?
+- **Semantic context**: What are retained users actually saying compared to churned users?
+
+The analysis covers 2.5M verified purchase reviews across four categories (Electronics, Video Games, Software, Cell Phones & Accessories) from January–June 2023, drawn from the [UCSD Amazon Reviews Dataset](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023).
+
+---
+
+## Architecture
+
+```
+Raw JSONL (43GB, 4 categories)
+        │
+        ▼
+┌─────────────────┐
+│  Data Cleaning   │  Polars streaming: verified purchases, date filter,
+│  (clean_data.py) │  dedup by (user, product, timestamp)
+└────────┬────────┘
+         │  2,523,881 rows
+         ▼
+┌─────────────────┐     ┌──────────────────┐
+│  Graph Logic     │────▶│  ML Layer         │
+│  (graph_logic/)  │     │  (ml/)            │
+│                  │     │                   │
+│  • User/Review   │     │  • Retention RF   │
+│    OOP model     │     │  • User clustering│
+│  • Retention     │     │  • Feature eng.   │
+│    (90-day)      │     │                   │
+│  • Expansion     │     └────────┬─────────┘
+│    pathways      │              │
+│  • Right-        │              │
+│    censoring     │              │
+└────────┬────────┘              │
+         │                        │
+         ▼                        ▼
+┌─────────────────────────────────────────┐
+│  RAG Pipeline                            │
+│  (scripts/)                              │
+│                                          │
+│  Stage 1: Extract text + metadata labels │
+│  Stage 2: Embed (all-MiniLM-L6-v2, 384d)│
+│  Stage 3: Index into Qdrant (2.5M pts)   │
+└────────────────┬────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────┐
+│  Streamlit Dashboard (web/app.py)        │
+│                                          │
+│  • Category rankings by retention rate   │
+│  • Metric filtering & comparison         │
+│  • Expansion pathway visualization       │
+│  • Category detail explorer              │
+│  • ML insights (clusters, predictions)   │
+└─────────────────────────────────────────┘
 ```
 
-2. **Activate virtual environment:**
-```bash
-source venv/bin/activate
+---
+
+## Tech Stack
+
+| Layer | Tools |
+|-------|-------|
+| Data processing | Polars (streaming), Pandas |
+| Graph modeling | NetworkX (MultiDiGraph + DiGraph) |
+| Machine learning | scikit-learn (Random Forest, KMeans), Joblib |
+| Embeddings | sentence-transformers (`all-MiniLM-L6-v2`), PyTorch (MPS) |
+| Vector search | Qdrant (local on-disk, 2.5M points) |
+| Dashboard | Streamlit, Plotly |
+| Testing | pytest (139 tests, 94% coverage) |
+
+## Development Process
+
+### Session Logging
+
+This project was built across 10+ working sessions with AI assistants (Claude Haiku 4.5, Sonnet 4.6, Opus 4.6) and validated with GPT-5.4 Codex audits. Each session is tracked as a standalone markdown file in [`logs/`](logs/), indexed by [`logs/LOG_INDEX.md`](logs/LOG_INDEX.md).
+
+The logging structure was designed for **context efficiency** — each new session starts by reading the index (not all prior logs), picking up exactly where the last session left off. This made it possible to hand off between different models and sessions without losing decisions, rationale, or progress state.
+
+```
+logs/
+├── LOG_INDEX.md                              # Master index: session table, checkpoints, decisions
+├── 2026-03-25_session1_plan-revision-phase1.md
+├── 2026-03-27_session3c_audit-organization.md
+├── 2026-04-02_session6b_polars-audit-fixes.md
+└── ...
 ```
 
-3. **Verify dependencies** (already installed):
-```bash
-pip list | grep -E "pandas|numpy|jupyter|networkx|pytest"
+Each session file records: what was requested, what was completed, blockers encountered, and next steps. The index tracks key checkpoints and an evolving decisions log — creating a full paper trail from raw data to deployed dashboard.
+
+### Custom AI Agents
+
+Two specialized Claude Code agents were created to own distinct layers of the project:
+
+**`uiDev`** (Streamlit Agent) — Owns the dashboard layer in `web/`. Has read-only access to `graph_logic/` and `ml/` as sources of truth, and is responsible for building views, controls, charts, caching, and app flow. It does not redefine backend metrics in the frontend — it surfaces them. Configured with its own persistent memory to track UI decisions across sessions.
+
+**`dScientist`** (Analytics Agent) — Owns the RAG pipeline: review text extraction, embedding, vector indexing, retrieval, and metadata filtering. Operates under the constraint that deterministic analytics stay in Python code — the LLM is only used for retrieval orchestration and synthesis. Treats `graph_logic` as authoritative for behavioral labels and avoids redefining retention or expansion semantics inside the RAG layer.
+
+This separation enforced clean boundaries: the dashboard never recalculates metrics, the RAG pipeline never invents behavioral labels, and each agent has a clear source of truth.
+
+---
+
+## Core Metrics
+
+**Retention** (90-day window): A user is *retained* in a category if they leave 2+ reviews on 2+ distinct days within 90 days of their first review in that category. Users whose first review falls after April 2, 2023 are right-censored — excluded from retention denominators since their 90-day window extends beyond the dataset boundary.
+
+**Expansion pathway**: Entry category A is a positive expansion pathway to high-retention category B if users who start in A have an above-baseline probability of reviewing in B within 90 days.
+
+```
+ExpansionDifference(A → B) = P(B | first = A) − P(B | first ≠ A)
 ```
 
-### Run Data Cleaning
+**High-retention category**: A category whose retention rate is in the top quartile, with at least 30 observable users.
 
-```bash
-# Full dataset (production)
-python3 scripts/clean_data.py
+See [`docs/METRICS.md`](docs/METRICS.md) for complete definitions and worked examples.
 
-# Sample run (testing, 100 records/file)
-python3 scripts/clean_data.py --sample-size 100
+---
 
-# Custom output directory
-python3 scripts/clean_data.py --output-dir /custom/path/data/cleaned
-```
+## Key Findings
 
-### Explore Cleaned Data
+<!-- TODO: Fill in after full dataset analysis is complete -->
 
-```bash
-jupyter notebook notebooks/CLEANED_DATA_EXPLORER.ipynb
-```
+- Retention rates, high-retention categories, and expansion pathways will be summarized here
+- See `docs/data_quality_report.md` for dataset statistics
+
+---
+
+## Reflections (In Progress)
+
+- Explore methods of token efficiency (JSON vs. TOON, chunking, log index notation) <!-- TODO: Tyler to write reflections after project completion -->
+- Start with explicit Agent pipeline instead of having 1 agent do bulk of work and introducing agents mid-way through
 
 ---
 
 ## Project Structure
 
 ```
-/
-├── venv/                          # Python virtual environment
-├── data/raw/                      # Raw JSONL data files (DO NOT MODIFY)
-│   ├── Cell_Phones_and_Accessories.jsonl
-│   ├── Electronics.jsonl
-│   ├── Software.jsonl
-│   ├── Video_Games.jsonl
-│   └── meta_*.jsonl               # Metadata (not used)
-├── scripts/
-│   └── clean_data.py              # Data cleaning pipeline
 ├── data/
-│   └── cleaned/
-│       ├── cleaned_reviews.csv    # OUTPUT: Combined cleaned data
-│       └── cleaned_reviews.parquet # (if pyarrow installed)
-├── graph_logic/                   # Phase 2: OOP classes & analysis
-│   ├── models.py                  # User, Category, Review, Graph classes
-│   └── analysis.py                # Retention & expansion calculations
-├── tests/                         # Unit + integration test suite
-│   ├── test_models.py             # Unit tests for models
-│   ├── test_analysis.py           # Unit tests for analysis
-│   └── test_integration.py        # Full-dataset integration tests
-├── web/                           # Phase 3: planned
-├── docs/
-│   ├── data_specs.md              # Data spec & filtering pipeline
-│   ├── METRICS.md                 # Retention & expansion definitions
-│   ├── data_quality_report.md     # Filtering statistics
-│   └── phase1_data_integrity_report.md # Audit & fixes
-├── PROJECT_PLAN.md                # High-level overview
-├── CLAUDE.md                      # Technical guidance & architecture
-├── notebooks/
-│   └── CLEANED_DATA_EXPLORER.ipynb  # Interactive data exploration
-├── logs.md                        # Session progress log
-├── requirements.txt               # Python dependencies
-└── README.md                      # This file
+│   ├── raw/                    # Raw JSONL (43GB, not tracked in git)
+│   ├── cleaned/                # Cleaned CSV (2.5M rows)
+│   └── rag/                    # Embeddings + Qdrant index (not tracked)
+├── scripts/                    # Data cleaning + RAG pipeline scripts
+├── graph_logic/                # OOP models: User, Category, Review, Graph
+│   ├── models.py               # Core classes + retention logic
+│   └── analysis.py             # Retention rates, expansion pathways
+├── ml/                         # Machine learning layer
+│   ├── features.py             # Polars feature engineering
+│   ├── retention_model.py      # Random Forest retention prediction
+│   └── clustering.py           # KMeans user segmentation
+├── web/                        # Streamlit dashboard
+├── tests/                      # 139 unit + integration tests
+├── docs/                       # Metrics definitions, data specs, reports
+├── logs/                       # Per-session development logs
+├── notebooks/                  # Data exploration notebooks
+└── .claude/agents/             # Custom AI agent definitions
 ```
 
 ---
 
-## Key Files & Documentation
+## Getting Started
 
-### Getting Started
-- **This file** (`README.md`) - Start here
-- `PROJECT_PLAN.md` - High-level project overview & deadlines
-- `CLAUDE.md` - Technical constraints & implementation guidance
+### Prerequisites
 
-### Data & Metrics
-- `docs/data_specs.md` - Data spec, filtering pipeline, schema, quality metrics
-- `docs/METRICS.md` - Retention & expansion formula definitions
-- `docs/data_quality_report.md` - Auto-generated filtering statistics
+- Python 3.10+
+- ~16GB RAM (Qdrant loads 13GB collection into memory)
+- ~50GB disk (raw data + embeddings + vector index)
 
-### Implementation
-- `scripts/clean_data.py` - Data cleaning pipeline (Phase 1)
-- `graph_logic/models.py` - OOP classes: User, Category, Review, Graph (Phase 2)
-- `graph_logic/analysis.py` - Retention & expansion calculations (Phase 2)
-- `web/app.py` - Streamlit dashboard (Phase 3, TBD)
-- `tests/` - Unit & integration tests (83/83 passing)
+### Setup
 
-### Progress & Audit
-- `logs/LOG_INDEX.md` - Session-by-session progress tracker
-- `docs/phase1_data_integrity_report.md` - Code audit & quality findings
-
----
-
-## Data Specification
-
-### Source
-**UCSD Amazon Reviews Dataset**
-- 74.2M raw reviews across 4 tech categories
-- Date range: May 1996 - September 2023 (raw)
-- Analysis window: January 1, 2023 - June 30, 2023
-
-### Filtering Pipeline
-1. `verified_purchase = True`
-2. Date range (Jan-Jun 2023)
-3. Categories: Electronics, Video_Games, Software, Cell_Phones_and_Accessories
-4. Group by `parent_asin` (dedup variants)
-5. Remove duplicate (user_id, parent_asin, timestamp) combinations
-
-### Output
-- **Records/Users/Products/Categories**: run-dependent (sample vs full)
-- See `docs/data_quality_report.md` for current authoritative counts
-
-### Schema (12 columns)
-```
-user_id, parent_asin, asin, timestamp, date, rating,
-verified_purchase, category_name, helpful_vote,
-user_first_date, days_since_first, review_sequence
-```
-
-See `docs/data_specs.md` for complete schema documentation.
-
----
-
-## Core Metrics
-
-### Retention (90-Day Window)
-A user is **retained** in a category if, within 90 days of their first review, they post **2+ reviews on 2+ distinct days**.
-
-```
-retention_rate(category) = retained_observable_users / total_observable_users
-```
-(Observable = first review in category on or before 2023-04-02; right-censored users excluded.)
-
-### Expansion Pathway (90-Day Window)
-An entry category is a **positive expansion pathway** to a high-retention category if:
-
-```
-ExpansionDifference(A → B) = P(B | first = A) − P(B | first ≠ A) > 0
-```
-
-Where P(B | first = A) = probability of reviewing category B within 90 days of entering via category A. Right-censored users (entering after April 2, 2023) are excluded from both cohorts.
-
-### High-Retention Categories
-Categories in the **top quartile** of retention rates (with 30+ observable users).
-
-See `docs/METRICS.md` for complete definitions, formulas, and worked examples.
-
----
-
-## Project Phases
-
-### ✅ Phase 1: Data Cleaning (By April 3, 2026)
-**Status**: Complete
-
-- ✅ Cleaning script and methodology implemented
-- ✅ Quality report generation implemented
-- ✅ Validation reports documented
-- ✅ Full dataset cleaned: 2,523,881 rows, 1,832,347 users, 369,782 products
-
----
-
-### ✅ Phase 2: Graph Logic & Testing (April 4-10, 2026)
-**Status**: Complete
-
-- ✅ OOP classes: User, Category, Review, Graph (`graph_logic/models.py`)
-- ✅ Retention & expansion calculations (`graph_logic/analysis.py`)
-- ✅ Right-censoring guard for 90-day observation window
-- ✅ Two-layer graph: interaction (MultiDiGraph) + transition (DiGraph)
-- ✅ 83/83 tests passing (unit + integration), 5 manual spot-checks verified
-- ✅ Summary report: retention rates, high-retention categories, expansion pathways
-
----
-
-### 🎨 Phase 3: Web Interface (April 11-17, 2026)
-**Status**: Ready After Phase 2
-
-**Objectives**:
-- [ ] Build Streamlit dashboard
-- [ ] Implement category explorer
-- [ ] Visualize expansion pathways
-- [ ] Add filtering/sorting controls
-
-**Deliverables**:
-- `web/app.py` - Streamlit app
-- Visualizations (retention charts, network graph, Sankey)
-
-**Required Interactions** (4+):
-1. View category rankings by retention rate
-2. Filter categories by metrics
-3. Explore expansion pathways
-4. Inspect category details
-
----
-
-### 📦 Phase 4: Finalization (April 18-24, 2026)
-**Status**: After Phases 2 & 3
-
-**Objectives**:
-- [ ] Organize code & clean up
-- [ ] Complete documentation
-- [ ] Full test suite passing
-- [ ] Performance optimization
-- [ ] Final code review
-
----
-
-## Key Commands
-
-### Data Processing
 ```bash
-# Run full cleaning
-python3 scripts/clean_data.py
+git clone https://github.com/trtyler1820/amazon-review-network-analysis.git
+cd amazon-review-network-analysis
 
-# Run with sample (100 records/file)
-python3 scripts/clean_data.py --sample-size 100
-
-# Verify output
-head -1 data/cleaned/cleaned_reviews.csv
-wc -l data/cleaned/cleaned_reviews.csv
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 ```
 
-### Exploration
-```bash
-# Open notebook
-jupyter notebook notebooks/CLEANED_DATA_EXPLORER.ipynb
+### Download Raw Data
 
-# Check data quality
-cat docs/data_quality_report.md
-```
-
-### Testing (Phase 2+)
-```bash
-# Run all tests
-pytest tests/
-
-# Run specific test
-pytest tests/test_models.py -v
-
-# Coverage report
-pytest --cov=graph_logic tests/
-```
-
-### Web Interface (Phase 3+)
-```bash
-# Run Streamlit app
-streamlit run web/app.py
-```
-
----
-
-## Important Notes
-
-### Data & Environment
-- **Timezone**: All dates normalized to UTC for reproducibility
-- **Memory**: Full cleaning uses ~5GB peak RAM (manageable on modern systems)
-- **File Size**: cleaned CSV size is run-dependent (sample: tiny; full run: hundreds of MB)
-- **Raw Data**: JSONL files in `data/raw/` are read-only
-
-### Development
-- **Virtual Environment Required**: Always activate `venv/` before running
-- **Python Path**: Scripts assume project root as working directory
-- **Dependencies**: Listed in `requirements.txt` (already installed in venv)
-
-### Phase 2 Prerequisites
-- Phase 1 cleaning must be complete (run `python3 scripts/clean_data.py` first)
-- Read `docs/METRICS.md` thoroughly before implementing graph logic
-- Study edge cases in `docs/data_specs.md` (single-review users, timezone boundaries, etc.)
-
----
-
-## Troubleshooting
-
-### Memory Usage Too High
-```bash
-# Kill stale Jupyter kernels
-pkill -9 -f "ipykernel_launcher"
-```
-
-### Data Not Loading
-```bash
-# Verify cleaned data exists
-ls -lh data/cleaned/cleaned_reviews.csv
-
-# Re-run cleaning
-python3 scripts/clean_data.py --sample-size 25
-```
-
-### Tests Failing
-```bash
-# Check pytest is installed
-pip install pytest pytest-cov
-
-# Run with verbose output
-pytest tests/ -v --tb=short
-```
-
-### Script Permission Issues
-```bash
-# Make script executable
-chmod +x scripts/clean_data.py
-
-# Run explicitly
-python3 scripts/clean_data.py
-```
-
----
-
-## Resources
-
-### Documentation
-- **Project Overview**: `PROJECT_PLAN.md`
-- **Data Spec**: `docs/data_specs.md`
-- **Metrics**: `docs/METRICS.md`
-- **Technical Guidance**: `CLAUDE.md`
-- **Progress Log**: `logs/LOG_INDEX.md`
-
-### Data
-
-> **Note**: Raw and cleaned data files are not tracked in git (too large). Download the raw data and regenerate the cleaned dataset locally.
-
-**Download raw data** (requires `huggingface_hub`):
 ```bash
 pip install huggingface_hub
 python3 -c "
@@ -365,33 +204,41 @@ for cat in ['Electronics', 'Video_Games', 'Software', 'Cell_Phones_and_Accessori
 "
 ```
 
-**Regenerate cleaned data**:
+### Run the Pipeline
+
 ```bash
+# 1. Clean data (43GB → 2.5M rows)
 python3 scripts/clean_data.py
+
+# 2. Build RAG corpus
+python3 scripts/extract_review_text.py
+python3 scripts/build_rag_metadata.py
+python3 scripts/join_rag_text.py
+
+# 3. Embed reviews (~50 min on Apple Silicon with MPS)
+python3 scripts/embed_reviews.py
+
+# 4. Index into Qdrant (~15 min)
+python3 scripts/index_qdrant.py --recreate
+
+# 5. Verify RAG pipeline
+python3 scripts/test_rag_query.py
+
+# 6. Run tests
+pytest tests/ -v
+
+# 7. Launch dashboard
+streamlit run web/app.py
 ```
 
-- **Source**: https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023
-- **Quality Report**: `docs/data_quality_report.md` (auto-generated by cleaning script)
+---
 
-For questions or feedback:
-- Check `logs/LOG_INDEX.md` for session history
-- Review `CLAUDE.md` for technical constraints
-- Consult `docs/METRICS.md` for metric definitions
+## License
+
+MIT License. See [LICENSE](LICENSE) for details.
+
+Note: The Amazon review data used in this project is sourced from the [UCSD Amazon Reviews Dataset](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023) and is subject to its own terms of use.
 
 ---
 
-## Success Criteria
-
-- [x] Data correctly filtered (verified_purchase=True, Jan-Jun 2023, 4 categories)
-- [x] Retention calculations manually verified on 5+ sample users
-- [x] Graph structure correctly represents user-category relationships
-- [x] Expansion pathway analysis accurate (90-day windows, baseline comparison)
-- [ ] Web interface intuitive with 4+ interaction modes
-- [x] OOP design with User, Category, Review, Graph classes
-- [x] 80%+ test coverage with passing unit/integration tests
-- [ ] Complete documentation (data_specs.md, METRICS.md, README.md)
-
----
-
-**Status**: Phases 1-2 complete. Phase 3 (web interface) next.
-**Next Step**: Build Streamlit dashboard with 4+ interaction modes
+<sup>Built as part of coursework for SI 511 (Data Science) and SI 507 (Graph Logic) at the University of Michigan School of Information, Winter 2026.</sup>

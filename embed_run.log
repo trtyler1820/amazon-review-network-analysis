@@ -1,0 +1,97 @@
+2026-04-09 00:36:07,568 - INFO - Device: mps
+2026-04-09 00:36:07,569 - INFO - Loading /Users/tylertran/Documents/umich/courses/w26_project/data/rag/reviews_with_text.parquet
+2026-04-09 00:36:07,728 - INFO - Loaded 2,523,881 rows
+2026-04-09 00:36:08,025 - INFO - Loading model: sentence-transformers/all-MiniLM-L6-v2
+2026-04-09 00:36:08,026 - INFO - Load pretrained SentenceTransformer: sentence-transformers/all-MiniLM-L6-v2
+2026-04-09 00:36:08,188 - INFO - HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/modules.json "HTTP/1.1 307 Temporary Redirect"
+2026-04-09 00:36:08,211 - INFO - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/modules.json "HTTP/1.1 200 OK"
+2026-04-09 00:36:08,267 - INFO - HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config_sentence_transformers.json "HTTP/1.1 307 Temporary Redirect"
+2026-04-09 00:36:08,289 - INFO - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/config_sentence_transformers.json "HTTP/1.1 200 OK"
+2026-04-09 00:36:08,343 - INFO - HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config_sentence_transformers.json "HTTP/1.1 307 Temporary Redirect"
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+2026-04-09 00:36:08,343 - WARNING - Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+2026-04-09 00:36:08,365 - INFO - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/config_sentence_transformers.json "HTTP/1.1 200 OK"
+2026-04-09 00:36:08,417 - INFO - HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/README.md "HTTP/1.1 307 Temporary Redirect"
+2026-04-09 00:36:08,439 - INFO - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/README.md "HTTP/1.1 200 OK"
+2026-04-09 00:36:08,568 - INFO - HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/modules.json "HTTP/1.1 307 Temporary Redirect"
+2026-04-09 00:36:08,589 - INFO - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/modules.json "HTTP/1.1 200 OK"
+2026-04-09 00:36:08,640 - INFO - HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/sentence_bert_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-04-09 00:36:08,661 - INFO - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/sentence_bert_config.json "HTTP/1.1 200 OK"
+2026-04-09 00:36:08,721 - INFO - HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/adapter_config.json "HTTP/1.1 404 Not Found"
+2026-04-09 00:36:08,775 - INFO - HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-04-09 00:36:08,795 - INFO - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/config.json "HTTP/1.1 200 OK"
+Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]Loading weights: 100%|██████████| 103/103 [00:00<00:00, 7630.05it/s]
+[1mBertModel LOAD REPORT[0m from: sentence-transformers/all-MiniLM-L6-v2
+Key                     | Status     |  | 
+------------------------+------------+--+-
+embeddings.position_ids | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+2026-04-09 00:36:08,979 - INFO - HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-04-09 00:36:09,001 - INFO - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/config.json "HTTP/1.1 200 OK"
+2026-04-09 00:36:09,051 - INFO - HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-04-09 00:36:09,072 - INFO - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-04-09 00:36:09,126 - INFO - HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-04-09 00:36:09,184 - INFO - HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-04-09 00:36:09,270 - INFO - HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/1_Pooling/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-04-09 00:36:09,292 - INFO - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/1_Pooling%2Fconfig.json "HTTP/1.1 200 OK"
+2026-04-09 00:36:09,347 - INFO - HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2 "HTTP/1.1 200 OK"
+2026-04-09 00:36:09,597 - INFO - Model ready in 1.6s
+2026-04-09 00:36:09,597 - INFO - Warm-up encoding (ignored in throughput stats)
+2026-04-09 00:36:09,727 - INFO - Plan: 2,523,881 rows → 51 shards of up to 50,000 rows each (batch_size=256)
+2026-04-09 00:36:42,528 - INFO - [shard 00000] 50,000 rows in 32.8s (1,524 r/s shard, 1,524 r/s overall)  progress=50,000/2,523,881 (2.0%)  ETA=27.0 min
+2026-04-09 00:37:14,756 - INFO - [shard 00001] 50,000 rows in 32.2s (1,551 r/s shard, 1,538 r/s overall)  progress=100,000/2,523,881 (4.0%)  ETA=26.3 min
+2026-04-09 00:37:46,987 - INFO - [shard 00002] 50,000 rows in 32.2s (1,551 r/s shard, 1,542 r/s overall)  progress=150,000/2,523,881 (5.9%)  ETA=25.7 min
+2026-04-09 00:38:19,257 - INFO - [shard 00003] 50,000 rows in 32.3s (1,549 r/s shard, 1,544 r/s overall)  progress=200,000/2,523,881 (7.9%)  ETA=25.1 min
+2026-04-09 00:38:51,241 - INFO - [shard 00004] 50,000 rows in 32.0s (1,563 r/s shard, 1,548 r/s overall)  progress=250,000/2,523,881 (9.9%)  ETA=24.5 min
+2026-04-09 00:39:24,061 - INFO - [shard 00005] 50,000 rows in 32.8s (1,524 r/s shard, 1,544 r/s overall)  progress=300,000/2,523,881 (11.9%)  ETA=24.0 min
+2026-04-09 00:40:03,132 - INFO - [shard 00006] 50,000 rows in 39.1s (1,280 r/s shard, 1,500 r/s overall)  progress=350,000/2,523,881 (13.9%)  ETA=24.2 min
+2026-04-09 00:41:01,754 - INFO - [shard 00007] 50,000 rows in 58.6s (853 r/s shard, 1,370 r/s overall)  progress=400,000/2,523,881 (15.8%)  ETA=25.8 min
+2026-04-09 00:42:04,381 - INFO - [shard 00008] 50,000 rows in 62.6s (798 r/s shard, 1,269 r/s overall)  progress=450,000/2,523,881 (17.8%)  ETA=27.2 min
+2026-04-09 00:43:15,753 - INFO - [shard 00009] 50,000 rows in 71.4s (701 r/s shard, 1,174 r/s overall)  progress=500,000/2,523,881 (19.8%)  ETA=28.7 min
+2026-04-09 00:44:27,132 - INFO - [shard 00010] 50,000 rows in 71.4s (701 r/s shard, 1,106 r/s overall)  progress=550,000/2,523,881 (21.8%)  ETA=29.8 min
+2026-04-09 00:45:39,265 - INFO - [shard 00011] 50,000 rows in 72.1s (693 r/s shard, 1,053 r/s overall)  progress=600,000/2,523,881 (23.8%)  ETA=30.4 min
+2026-04-09 00:46:40,345 - INFO - [shard 00012] 50,000 rows in 61.1s (819 r/s shard, 1,031 r/s overall)  progress=650,000/2,523,881 (25.8%)  ETA=30.3 min
+2026-04-09 00:47:48,063 - INFO - [shard 00013] 50,000 rows in 67.7s (738 r/s shard, 1,002 r/s overall)  progress=700,000/2,523,881 (27.7%)  ETA=30.3 min
+2026-04-09 00:49:01,251 - INFO - [shard 00014] 50,000 rows in 73.2s (683 r/s shard, 972 r/s overall)  progress=750,000/2,523,881 (29.7%)  ETA=30.4 min
+2026-04-09 00:49:59,483 - INFO - [shard 00015] 50,000 rows in 58.2s (859 r/s shard, 964 r/s overall)  progress=800,000/2,523,881 (31.7%)  ETA=29.8 min
+2026-04-09 00:51:14,424 - INFO - [shard 00016] 50,000 rows in 74.9s (667 r/s shard, 940 r/s overall)  progress=850,000/2,523,881 (33.7%)  ETA=29.7 min
+2026-04-09 00:52:38,223 - INFO - [shard 00017] 50,000 rows in 83.8s (597 r/s shard, 910 r/s overall)  progress=900,000/2,523,881 (35.7%)  ETA=29.7 min
+2026-04-09 00:54:08,332 - INFO - [shard 00018] 50,000 rows in 90.1s (555 r/s shard, 881 r/s overall)  progress=950,000/2,523,881 (37.6%)  ETA=29.8 min
+2026-04-09 00:55:31,305 - INFO - [shard 00019] 50,000 rows in 83.0s (603 r/s shard, 861 r/s overall)  progress=1,000,000/2,523,881 (39.6%)  ETA=29.5 min
+2026-04-09 00:56:58,633 - INFO - [shard 00020] 50,000 rows in 87.3s (573 r/s shard, 841 r/s overall)  progress=1,050,000/2,523,881 (41.6%)  ETA=29.2 min
+2026-04-09 00:58:08,843 - INFO - [shard 00021] 50,000 rows in 70.2s (712 r/s shard, 834 r/s overall)  progress=1,100,000/2,523,881 (43.6%)  ETA=28.5 min
+2026-04-09 00:59:10,406 - INFO - [shard 00022] 50,000 rows in 61.6s (812 r/s shard, 833 r/s overall)  progress=1,150,000/2,523,881 (45.6%)  ETA=27.5 min
+2026-04-09 01:00:26,055 - INFO - [shard 00023] 50,000 rows in 75.6s (661 r/s shard, 824 r/s overall)  progress=1,200,000/2,523,881 (47.5%)  ETA=26.8 min
+2026-04-09 01:01:22,252 - INFO - [shard 00024] 50,000 rows in 56.2s (890 r/s shard, 826 r/s overall)  progress=1,250,000/2,523,881 (49.5%)  ETA=25.7 min
+2026-04-09 01:02:30,260 - INFO - [shard 00025] 50,000 rows in 68.0s (735 r/s shard, 823 r/s overall)  progress=1,300,000/2,523,881 (51.5%)  ETA=24.8 min
+2026-04-09 01:03:35,808 - INFO - [shard 00026] 50,000 rows in 65.5s (763 r/s shard, 820 r/s overall)  progress=1,350,000/2,523,881 (53.5%)  ETA=23.9 min
+2026-04-09 01:04:40,213 - INFO - [shard 00027] 50,000 rows in 64.4s (776 r/s shard, 818 r/s overall)  progress=1,400,000/2,523,881 (55.5%)  ETA=22.9 min
+2026-04-09 01:05:41,606 - INFO - [shard 00028] 50,000 rows in 61.4s (814 r/s shard, 818 r/s overall)  progress=1,450,000/2,523,881 (57.5%)  ETA=21.9 min
+2026-04-09 01:06:42,968 - INFO - [shard 00029] 50,000 rows in 61.4s (815 r/s shard, 818 r/s overall)  progress=1,500,000/2,523,881 (59.4%)  ETA=20.9 min
+2026-04-09 01:07:44,755 - INFO - [shard 00030] 50,000 rows in 61.8s (809 r/s shard, 818 r/s overall)  progress=1,550,000/2,523,881 (61.4%)  ETA=19.8 min
+2026-04-09 01:08:56,447 - INFO - [shard 00031] 50,000 rows in 71.7s (697 r/s shard, 814 r/s overall)  progress=1,600,000/2,523,881 (63.4%)  ETA=18.9 min
+2026-04-09 01:10:15,566 - INFO - [shard 00032] 50,000 rows in 79.1s (632 r/s shard, 807 r/s overall)  progress=1,650,000/2,523,881 (65.4%)  ETA=18.1 min
+2026-04-09 01:11:22,204 - INFO - [shard 00033] 50,000 rows in 66.6s (750 r/s shard, 805 r/s overall)  progress=1,700,000/2,523,881 (67.4%)  ETA=17.1 min
+2026-04-09 01:12:30,100 - INFO - [shard 00034] 50,000 rows in 67.9s (736 r/s shard, 803 r/s overall)  progress=1,750,000/2,523,881 (69.3%)  ETA=16.1 min
+2026-04-09 01:13:31,934 - INFO - [shard 00035] 50,000 rows in 61.8s (809 r/s shard, 803 r/s overall)  progress=1,800,000/2,523,881 (71.3%)  ETA=15.0 min
+2026-04-09 01:14:30,739 - INFO - [shard 00036] 50,000 rows in 58.8s (850 r/s shard, 804 r/s overall)  progress=1,850,000/2,523,881 (73.3%)  ETA=14.0 min
+2026-04-09 01:15:27,953 - INFO - [shard 00037] 50,000 rows in 57.2s (874 r/s shard, 806 r/s overall)  progress=1,900,000/2,523,881 (75.3%)  ETA=12.9 min
+2026-04-09 01:16:36,097 - INFO - [shard 00038] 50,000 rows in 68.1s (734 r/s shard, 804 r/s overall)  progress=1,950,000/2,523,881 (77.3%)  ETA=11.9 min
+2026-04-09 01:17:42,443 - INFO - [shard 00039] 50,000 rows in 66.3s (754 r/s shard, 802 r/s overall)  progress=2,000,000/2,523,881 (79.2%)  ETA=10.9 min
+2026-04-09 01:18:49,663 - INFO - [shard 00040] 50,000 rows in 67.2s (744 r/s shard, 801 r/s overall)  progress=2,050,000/2,523,881 (81.2%)  ETA=9.9 min
+2026-04-09 01:19:52,878 - INFO - [shard 00041] 50,000 rows in 63.2s (791 r/s shard, 801 r/s overall)  progress=2,100,000/2,523,881 (83.2%)  ETA=8.8 min
+2026-04-09 01:20:58,612 - INFO - [shard 00042] 50,000 rows in 65.7s (761 r/s shard, 800 r/s overall)  progress=2,150,000/2,523,881 (85.2%)  ETA=7.8 min
+2026-04-09 01:21:59,937 - INFO - [shard 00043] 50,000 rows in 61.3s (815 r/s shard, 800 r/s overall)  progress=2,200,000/2,523,881 (87.2%)  ETA=6.7 min
+2026-04-09 01:23:09,803 - INFO - [shard 00044] 50,000 rows in 69.9s (716 r/s shard, 798 r/s overall)  progress=2,250,000/2,523,881 (89.1%)  ETA=5.7 min
+2026-04-09 01:24:15,464 - INFO - [shard 00045] 50,000 rows in 65.7s (762 r/s shard, 797 r/s overall)  progress=2,300,000/2,523,881 (91.1%)  ETA=4.7 min
+2026-04-09 01:25:25,349 - INFO - [shard 00046] 50,000 rows in 69.9s (715 r/s shard, 795 r/s overall)  progress=2,350,000/2,523,881 (93.1%)  ETA=3.6 min
+2026-04-09 01:26:25,956 - INFO - [shard 00047] 50,000 rows in 60.6s (825 r/s shard, 796 r/s overall)  progress=2,400,000/2,523,881 (95.1%)  ETA=2.6 min
+2026-04-09 01:27:33,006 - INFO - [shard 00048] 50,000 rows in 67.0s (746 r/s shard, 795 r/s overall)  progress=2,450,000/2,523,881 (97.1%)  ETA=1.5 min
+2026-04-09 01:28:43,665 - INFO - [shard 00049] 50,000 rows in 70.7s (708 r/s shard, 793 r/s overall)  progress=2,500,000/2,523,881 (99.1%)  ETA=0.5 min
+2026-04-09 01:29:09,088 - INFO - [shard 00050] 23,881 rows in 25.4s (939 r/s shard, 794 r/s overall)  progress=2,523,881/2,523,881 (100.0%)  ETA=0.0 min
+2026-04-09 01:29:09,088 - INFO - ============================================================
+2026-04-09 01:29:09,088 - INFO - DONE  encoded 2,523,881 rows this run in 3179.3s
+2026-04-09 01:29:09,088 - INFO - Overall throughput: 794 rows/sec  (for full 2,523,881-row dataset this run-rate implies 53.0 min)
+2026-04-09 01:29:09,181 - INFO - Shards on disk: 51  total rows: 2,523,881
