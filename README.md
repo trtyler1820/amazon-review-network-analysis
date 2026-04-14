@@ -52,8 +52,10 @@ Raw JSONL (43GB, 4 categories)
 │  (scripts/)                              │
 │                                          │
 │  Stage 1: Extract text + metadata labels │
-│  Stage 2: Embed (all-MiniLM-L6-v2, 384d)│
-│  Stage 3: Index into Qdrant (2.5M pts)   │
+│  Stage 2: Embed (all-MiniLM-L6-v2, 384d) │
+│  Stage 3: Index into Qdrant              │
+│           (100K stratified sample,       │
+│            25K per category)             │
 └────────────────┬────────────────────────┘
                  │
                  ▼
@@ -65,6 +67,10 @@ Raw JSONL (43GB, 4 categories)
 │  • Expansion pathway visualization       │
 │  • Category detail explorer              │
 │  • ML insights (clusters, predictions)   │
+│  • Review Search                         │
+│      Qdrant retrieval → Gemini 2.5 Flash │
+│      synthesis (Key Themes, Summary,     │
+│      Supporting Excerpts)                │
 └─────────────────────────────────────────┘
 ```
 
@@ -77,10 +83,11 @@ Raw JSONL (43GB, 4 categories)
 | Data processing | Polars (streaming), Pandas |
 | Graph modeling | NetworkX (MultiDiGraph + DiGraph) |
 | Machine learning | scikit-learn (Random Forest, KMeans), Joblib |
-| Embeddings | sentence-transformers (`all-MiniLM-L6-v2`), PyTorch (MPS) |
-| Vector search | Qdrant (local on-disk, 2.5M points) |
+| Embeddings | sentence-transformers (`all-MiniLM-L6-v2`, 384d), PyTorch (MPS) |
+| Vector search | Qdrant (local on-disk, 100K stratified sample) |
+| LLM synthesis | Google Gemini 2.5 Flash (via `google-generativeai`) |
 | Dashboard | Streamlit, Plotly |
-| Testing | pytest (139 tests, 94% coverage) |
+| Testing | pytest (184 tests, graph/ML layer at 94% coverage) |
 
 ## Development Process
 
@@ -150,8 +157,9 @@ See [`docs/METRICS.md`](docs/METRICS.md) for complete definitions and worked exa
 ```
 ├── data/
 │   ├── raw/                    # Raw JSONL (43GB, not tracked in git)
-│   ├── cleaned/                # Cleaned CSV (2.5M rows)
-│   └── rag/                    # Embeddings + Qdrant index (not tracked)
+│   ├── cleaned/                # Cleaned CSV (2.5M rows, not tracked)
+│   ├── rag/                    # Embeddings + intermediate parquet (not tracked)
+│   └── qdrant_sample/          # 100K-point Qdrant collection (~500MB, not tracked)
 ├── scripts/                    # Data cleaning + RAG pipeline scripts
 ├── graph_logic/                # OOP models: User, Category, Review, Graph
 │   ├── models.py               # Core classes + retention logic
@@ -161,7 +169,7 @@ See [`docs/METRICS.md`](docs/METRICS.md) for complete definitions and worked exa
 │   ├── retention_model.py      # Random Forest retention prediction
 │   └── clustering.py           # KMeans user segmentation
 ├── web/                        # Streamlit dashboard
-├── tests/                      # 139 unit + integration tests
+├── tests/                      # 184 unit + integration tests
 ├── docs/                       # Metrics definitions, data specs, reports
 ├── logs/                       # Per-session development logs
 ├── notebooks/                  # Data exploration notebooks
@@ -174,11 +182,15 @@ See [`docs/METRICS.md`](docs/METRICS.md) for complete definitions and worked exa
 
 ### Prerequisites
 
-- Python 3.10+
-- ~16GB RAM (Qdrant loads 13GB collection into memory)
-- ~50GB disk (raw data + embeddings + vector index)
+| Requirement | Detail |
+|-------------|--------|
+| **Python** | 3.10+ |
+| **RAM** | 8GB minimum (sampled Qdrant collection fits in ~500MB); 16GB recommended for full-dataset pipeline |
+| **Disk** | ~5GB for the dashboard-only path; ~50GB for the full pipeline (raw JSONL + embeddings + full Qdrant index) |
+| **GPU** | Optional. Apple Silicon (MPS) or CUDA reduces embedding time from hours to ~50 minutes |
+| **Gemini API key** | Required for Review Search LLM synthesis. Free tier via [Google AI Studio](https://aistudio.google.com/app/apikey) |
 
-### Setup
+### Shared Setup
 
 ```bash
 git clone https://github.com/trtyler1820/amazon-review-network-analysis.git
@@ -189,47 +201,85 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Download Raw Data
+Create a `.env` file in the project root for the Gemini API key (used by the Review Search page):
 
 ```bash
-pip install huggingface_hub
+echo "GEMINI_API_KEY=your-key-here" > .env
+```
+
+> The first time you run Review Search, `sentence-transformers` auto-downloads the `all-MiniLM-L6-v2` model (~90MB) into `~/.cache/huggingface/`. This is a one-time download.
+
+---
+
+### Path A — Dashboard Only (Recommended)
+
+If you just want to explore the dashboard, you need two pre-built artifacts:
+
+1. **`data/cleaned/cleaned_reviews.csv`** — the cleaned 2.5M-row dataset (powers graph, ML, and category pages)
+2. **`data/qdrant_sample/`** — the 100K-point stratified Qdrant collection (powers Review Search)
+
+These are not tracked in git. Either regenerate them via Path B, or obtain them from the project owner.
+
+Once they are in place:
+
+```bash
+streamlit run web/app.py
+```
+
+The first load builds the in-memory graph (~60–120s). Subsequent page navigations are cached.
+
+---
+
+### Path B — Full Pipeline (From Scratch)
+
+#### 1. Download Raw Data (~43GB)
+
+The HuggingFace dataset stores files as `raw_review_{Category}.jsonl`, but the cleaning script expects `{Category}.jsonl` in `data/raw/`. Download and rename in one step:
+
+```bash
 python3 -c "
 from huggingface_hub import hf_hub_download
-import os
+import os, shutil
 os.makedirs('data/raw', exist_ok=True)
 for cat in ['Electronics', 'Video_Games', 'Software', 'Cell_Phones_and_Accessories']:
-    hf_hub_download(repo_id='McAuley-Lab/Amazon-Reviews-2023',
-                    filename=f'raw_review_{cat}.jsonl',
-                    repo_type='dataset', local_dir='data/raw')
+    src = hf_hub_download(repo_id='McAuley-Lab/Amazon-Reviews-2023',
+                          filename=f'raw_review_{cat}.jsonl',
+                          repo_type='dataset', local_dir='data/raw')
+    shutil.move(src, f'data/raw/{cat}.jsonl')
 "
 ```
 
-### Run the Pipeline
+#### 2. Run the Pipeline
 
 ```bash
-# 1. Clean data (43GB → 2.5M rows)
+# Clean data (43GB → 2.5M rows)
 python3 scripts/clean_data.py
 
-# 2. Build RAG corpus
+# Build RAG corpus (text extraction + metadata join)
 python3 scripts/extract_review_text.py
 python3 scripts/build_rag_metadata.py
 python3 scripts/join_rag_text.py
 
-# 3. Embed reviews (~50 min on Apple Silicon with MPS)
+# Embed reviews (~50 min on Apple Silicon MPS, longer on CPU)
 python3 scripts/embed_reviews.py
 
-# 4. Index into Qdrant (~15 min)
+# Index into Qdrant (~15 min)
+#   Default output path: data/qdrant/ (full 2.5M collection, ~12GB)
+#   The dashboard reads from data/qdrant_sample/ — override --qdrant-path
+#   or rename the directory after indexing.
 python3 scripts/index_qdrant.py --recreate
 
-# 5. Verify RAG pipeline
+# Verify RAG pipeline
 python3 scripts/test_rag_query.py
 
-# 6. Run tests
+# Run the test suite (184 tests)
 pytest tests/ -v
 
-# 7. Launch dashboard
+# Launch dashboard
 streamlit run web/app.py
 ```
+
+> **Note on Qdrant performance.** The full 2.5M-point collection is ~12GB on disk and pushes query latency into the 5+ minute range because the on-disk SQLite backend saturates I/O. The deployed app uses a 100K stratified sample (25K per category) at `data/qdrant_sample/` which keeps query latency to ~5–10 seconds. To reproduce the sample from the full collection, sample 25K rows per category from the joined parquet before embedding, or sample the upsert batch inside `index_qdrant.py`.
 
 ---
 
