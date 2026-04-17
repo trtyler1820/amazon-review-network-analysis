@@ -25,6 +25,7 @@ Session logs are stored as individual files for token efficiency. Each session g
 | [2026-04-08_session9_rag-stage1-extraction.md](2026-04-08_session9_rag-stage1-extraction.md) | 2026-04-08 | RAG Stages 1–3 prep: text extraction, metadata prep, embedding pipeline setup |
 | [2026-04-12_session8_review-search-optimization.md](2026-04-12_session8_review-search-optimization.md) | 2026-04-12 | Review Search optimization: sampled Qdrant (100K), switched to Gemini 2.5 Flash, fixed synthesis truncation |
 | [2026-04-16_session10_dashboard-ui-refactor.md](2026-04-16_session10_dashboard-ui-refactor.md) | 2026-04-16 | Dashboard UI refactor: nav reorder, bold active page, Overview + Limitations pages, pp expansion metrics |
+| [2026-04-17_session11_doc-finalization.md](2026-04-17_session11_doc-finalization.md) | 2026-04-17 | Doc finalization: README pages/test counts, data_specs variant ratios + row totals, METRICS pp clarification |
 
 ---
 
