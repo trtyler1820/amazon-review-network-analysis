@@ -6,8 +6,6 @@ import pytest
 from datetime import datetime, timedelta, timezone
 from graph_logic.models import Graph, Review, User, Category, MAX_ENTRY_DATE
 from ml.features import (
-    build_retention_features,
-    build_retention_features_all,
     build_user_features,
 )
 from tests.conftest import make_review, make_user, BASE_DATE
@@ -71,119 +69,6 @@ def _small_graph() -> Graph:
 
     df = pd.DataFrame(records)
     return Graph.from_dataframe(df)
-
-
-# ---------------------------------------------------------------------------
-# Retention feature tests
-# ---------------------------------------------------------------------------
-
-class TestBuildRetentionFeatures:
-
-    def test_returns_expected_columns(self):
-        g = _small_graph()
-        df = build_retention_features(g, "Electronics", max_entry_date=None)
-        expected = {
-            "user_id", "category", "first_rating", "first_helpful_vote",
-            "first_day_of_week", "first_hour_of_day", "prior_review_count",
-            "prior_category_count", "prior_avg_rating", "is_first_ever_review",
-            "category_size", "is_first_category", "days_since_first_ever",
-            "first_review_month", "retained",
-        }
-        assert set(df.columns) == expected
-
-    def test_only_observable_users(self):
-        g = _small_graph()
-        # With max_entry_date=None, all users are included
-        df = build_retention_features(g, "Electronics", max_entry_date=None)
-        assert len(df) == 4  # u1, u2, u3, u5 all in Electronics
-
-    def test_censoring_excludes_late_entrants(self):
-        """Users whose first review is after max_entry_date should be excluded."""
-        g = _small_graph()
-        # u5 enters Electronics on day 80 (BASE_DATE + 80d = 2023-03-26).
-        # Set cutoff before that to exclude u5.
-        cutoff = BASE_DATE + timedelta(days=30)  # 2023-02-04
-        df = build_retention_features(g, "Electronics", max_entry_date=cutoff)
-        assert len(df) == 3  # u1, u2, u3 — u5 excluded (entered day 80)
-        assert "u5" not in df["user_id"].values
-
-    def test_retained_label_matches(self):
-        g = _small_graph()
-        df = build_retention_features(g, "Electronics", max_entry_date=None)
-        u1_row = df[df["user_id"] == "u1"].iloc[0]
-        assert u1_row["retained"] == True  # 2 reviews, 2 distinct days
-
-        u2_row = df[df["user_id"] == "u2"].iloc[0]
-        assert u2_row["retained"] == False  # 1 review
-
-        u3_row = df[df["user_id"] == "u3"].iloc[0]
-        assert u3_row["retained"] == False  # 2 reviews but same day
-
-    def test_first_rating(self):
-        g = _small_graph()
-        df = build_retention_features(g, "Electronics", max_entry_date=None)
-        u1_row = df[df["user_id"] == "u1"].iloc[0]
-        assert u1_row["first_rating"] == 4.0
-
-    def test_prior_review_count_cross_category(self):
-        """u1's first Electronics review is day 0. u1 also has Video_Games day 5.
-        But Video_Games day 5 is AFTER Electronics day 0, so prior count = 0."""
-        g = _small_graph()
-        df = build_retention_features(g, "Electronics", max_entry_date=None)
-        u1_row = df[df["user_id"] == "u1"].iloc[0]
-        assert u1_row["prior_review_count"] == 0
-
-    def test_prior_review_count_has_prior(self):
-        """u1's first Video_Games review is day 5. u1 has Electronics day 0 before that."""
-        g = _small_graph()
-        df = build_retention_features(g, "Video_Games", max_entry_date=None)
-        u1_row = df[df["user_id"] == "u1"].iloc[0]
-        assert u1_row["prior_review_count"] == 1
-        assert u1_row["prior_category_count"] == 1
-
-    def test_is_first_ever_review(self):
-        g = _small_graph()
-        df = build_retention_features(g, "Electronics", max_entry_date=None)
-        u2_row = df[df["user_id"] == "u2"].iloc[0]
-        assert u2_row["is_first_ever_review"] == 1
-
-    def test_is_first_category(self):
-        g = _small_graph()
-        df = build_retention_features(g, "Electronics", max_entry_date=None)
-        u1_row = df[df["user_id"] == "u1"].iloc[0]
-        assert u1_row["is_first_category"] == 1  # Electronics day 0 is u1's first
-
-    def test_days_since_first_ever(self):
-        g = _small_graph()
-        df = build_retention_features(g, "Video_Games", max_entry_date=None)
-        u1_row = df[df["user_id"] == "u1"].iloc[0]
-        assert u1_row["days_since_first_ever"] == 5  # first ever day 0, VG day 5
-
-    def test_empty_category_returns_empty(self):
-        g = _small_graph()
-        df = build_retention_features(g, "Software", max_entry_date=None)
-        assert df.empty
-
-    def test_nonexistent_category_returns_empty(self):
-        g = _small_graph()
-        df = build_retention_features(g, "NoSuchCategory", max_entry_date=None)
-        assert df.empty
-
-
-class TestBuildRetentionFeaturesAll:
-
-    def test_combines_categories(self):
-        g = _small_graph()
-        df = build_retention_features_all(g, max_entry_date=None)
-        assert len(df) > 0
-        # Should have one-hot category columns
-        cat_cols = [c for c in df.columns if c.startswith("cat_")]
-        assert len(cat_cols) == 2  # Electronics and Video_Games
-
-    def test_no_raw_category_column(self):
-        g = _small_graph()
-        df = build_retention_features_all(g, max_entry_date=None)
-        assert "category" not in df.columns
 
 
 # ---------------------------------------------------------------------------

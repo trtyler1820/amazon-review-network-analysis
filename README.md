@@ -122,7 +122,12 @@ This separation enforced clean boundaries: the dashboard never recalculates metr
 
 ## Core Metrics
 
-**Retention** (90-day window): A user is *retained* in a category if they leave 2+ reviews on 2+ distinct days within 90 days of their first review in that category. Users whose first review falls after April 2, 2023 are right-censored — excluded from retention denominators since their 90-day window extends beyond the dataset boundary.
+**Retention** (90-day window):
+
+A user is *retained* if they meet these criteria:
+- Left 2 or more reviews
+- On 2 or more distinct days within 90 days of their first review in one category
+- Users whose first review falls after April 2, 2023 are right-censored (excluded) from retention denominators since their 90-day window extends beyond the dataset boundary.
 
 **Expansion pathway**: Entry category A is a positive expansion pathway to high-retention category B if users who start in A have an above-baseline probability of reviewing in B within 90 days.
 
@@ -166,10 +171,9 @@ See [`docs/METRICS.md`](docs/METRICS.md) for complete definitions and worked exa
 │   └── analysis.py             # Retention rates, expansion pathways
 ├── ml/                         # Machine learning layer
 │   ├── features.py             # Polars feature engineering
-│   ├── retention_model.py      # Random Forest retention prediction
 │   └── clustering.py           # KMeans user segmentation
 ├── web/                        # Streamlit dashboard
-├── tests/                      # 184 unit + integration tests
+├── tests/                      # 157 unit + integration tests
 ├── docs/                       # Metrics definitions, data specs, reports
 ├── logs/                       # Per-session development logs
 ├── notebooks/                  # Data exploration notebooks

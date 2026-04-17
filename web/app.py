@@ -2,12 +2,12 @@
 Amazon Reviews Analysis — Streamlit Dashboard (Phase 3)
 
 Six pages:
-  1. Category Rankings   — retention rates, bar chart, scatter
-  2. Category Filter     — slider/checkbox filtering
-  3. Review Search       — RAG semantic search + LLM synthesis (Qdrant + OpenAI)
-  4. Expansion Pathways  — heatmaps + network graph
-  5. Category Detail     — per-category drill-down
-  6. ML Insights         — user clustering + retention prediction (button-triggered)
+  1. Overview           — landing page with top-line findings
+  2. Semantic Search    — RAG semantic search + LLM synthesis (Qdrant + Gemini)
+  3. Expansion Pathways — heatmaps + network graph
+  4. User Segmentation  — user clustering (K-means, button-triggered)
+  5. Category Detail    — overview (rankings, charts) + per-category drill-down
+  6. Limitations        — methodology caveats
 
 Caveats surfaced throughout:
   - 90-day retention window
@@ -99,7 +99,7 @@ def get_expansion_data(_graph: Graph) -> tuple[pd.DataFrame, pd.DataFrame, set]:
 @st.cache_resource(show_spinner=False)
 def get_ml_results(_graph: Graph) -> dict:
     """
-    Run ML pipeline: user clustering + retention prediction.
+    Run ML pipeline: user clustering (K-means).
     Only called when user clicks the trigger button.
     """
     from ml.clustering import (
@@ -109,8 +109,7 @@ def get_ml_results(_graph: Graph) -> dict:
         plot_silhouette,
         train_clustering,
     )
-    from ml.features import build_retention_features_all, build_user_features
-    from ml.retention_model import train_retention_model
+    from ml.features import build_user_features
 
     # -- User clustering --
     user_feat_df = build_user_features(_graph)
@@ -124,18 +123,11 @@ def get_ml_results(_graph: Graph) -> dict:
     label_map = dict(zip(cluster_profiles.index, cluster_profiles["label"]))
     user_feat_df["cluster_name"] = user_feat_df["cluster_label"].map(label_map)
 
-    # -- Retention model --
-    ret_feat_df = build_retention_features_all(_graph)
-    if len(ret_feat_df) > 50_000:
-        ret_feat_df = ret_feat_df.sample(50_000, random_state=42)
-    ret_result = train_retention_model(ret_feat_df, model_type="random_forest")
-
     return {
         "user_feat_df": user_feat_df,
         "k_result": k_result,
         "cluster_result": cluster_result,
         "cluster_profiles": cluster_profiles,
-        "ret_result": ret_result,
     }
 
 
@@ -170,25 +162,36 @@ def _build_rankings_df(graph: Graph, high_ret: set) -> pd.DataFrame:
 st.sidebar.title("Amazon Reviews Dashboard")
 st.sidebar.markdown("---")
 
-page = st.sidebar.radio(
-    "Navigation",
-    [
-        "Category Rankings",
-        "Category Filter",
-        "Review Search",
-        "Expansion Pathways",
-        "Category Detail",
-        "ML Insights",
-    ],
-)
+_NAV_PAGES = [
+    "Overview",
+    "Semantic Search",
+    "Expansion Pathways",
+    "User Segmentation",
+    "Category Detail",
+    "Limitations",
+]
+
+if "page" not in st.session_state:
+    st.session_state["page"] = _NAV_PAGES[0]
+
+for _p in _NAV_PAGES:
+    _is_active = (_p == st.session_state["page"])
+    _label = f"**{_p}**" if _is_active else _p
+    if st.sidebar.button(_label, key=f"nav_{_p}", use_container_width=True):
+        st.session_state["page"] = _p
+        st.rerun()
+
+page = st.session_state["page"]
 
 # Load graph (shows status block on first run)
 if "graph_loaded" not in st.session_state:
-    with st.status("Loading data... (first load takes 60-120 seconds)", expanded=True) as status:
+    with st.status("Loading data... (first load takes 90-180 seconds)", expanded=True) as status:
         st.write("Reading cleaned_reviews.csv (2.5M rows)...")
         graph, load_time = load_graph()
         st.write("Graph built. Computing high-retention categories...")
         high_ret = identify_high_retention_categories(graph.categories)
+        st.write("Computing expansion pathways (needed for Overview)...")
+        _count_matrix, _diff_matrix, _ = get_expansion_data(graph)
         st.write(f"Ready. Load time: {load_time:.0f}s")
         status.update(label="Data loaded.", state="complete", expanded=False)
     st.session_state["graph_loaded"] = True
@@ -196,169 +199,146 @@ else:
     graph, load_time = load_graph()
     high_ret = identify_high_retention_categories(graph.categories)
 
-# Sidebar status badge
-st.sidebar.markdown(
-    f"**Data:** {sum(cat.entering_user_count for cat in graph.categories.values()):,} user-category entries  \n"
-    f"**Load time:** {load_time:.0f}s  \n"
-    f"**Cutoff:** {MAX_ENTRY_DATE.date()} (90-day window)  \n"
-    f"**Data ends:** {OBSERVATION_END.date()}"
-)
-st.sidebar.markdown("---")
-st.sidebar.caption(
-    "Retention window: 90 days from first review per category.  \n"
-    "Right-censoring: users entering after 2023-04-02 excluded from denominators.  \n"
-    "Expansion differences are raw point estimates — no confidence intervals."
-)
-
 rankings_df = _build_rankings_df(graph, high_ret)
 
 # ===========================================================================
-# Page 1 — Category Rankings
+# Page 0 — Overview (landing page)
 # ===========================================================================
 
-if page == "Category Rankings":
-    st.title("Category Rankings")
+if page == "Overview":
+    st.title("Amazon Reviews Dashboard — Overview")
     st.caption(
-        "Retention rate = fraction of **observable** users retained (2+ reviews on 2+ distinct days "
-        "within 90 days of first review). Users whose first review falls after 2023-04-02 are "
-        "excluded from both numerator and denominator (right-censoring guard)."
+        "2,523,881 verified-purchase reviews across 4 categories "
+        "(Electronics, Video Games, Software, Cell Phones & Accessories) "
+        "from the UCSD Amazon Reviews 2023 dataset. Window: Jan 1 – Jun 30, 2023."
     )
 
-    # Metric cards
-    cols = st.columns(len(graph.categories))
-    for i, (name, cat) in enumerate(
-        sorted(graph.categories.items(), key=lambda kv: kv[1].retention_rate, reverse=True)
-    ):
-        badge = " (HIGH)" if name in high_ret else ""
-        cols[i].metric(
-            label=_fmt(name) + badge,
-            value=f"{cat.retention_rate:.1%}",
-            help=(
-                f"Observable users: {cat.observable_user_count():,}  \n"
-                f"Entering users: {cat.entering_user_count:,}  \n"
-                f"Right-censored (excluded): {cat.entering_user_count - cat.observable_user_count():,}"
-            ),
+    # --- Top-line metrics ---
+    total_users = len(graph.users)
+    total_observable = sum(c.observable_user_count() for c in graph.categories.values())
+    total_entering = sum(c.entering_user_count for c in graph.categories.values())
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Unique Users", f"{total_users:,}")
+    m2.metric(
+        "Observable Entries",
+        f"{total_observable:,}",
+        help=(
+            "Sum of per-category entering users whose first review falls on or before "
+            "2023-04-02 (so a full 90-day retention window can be observed)."
+        ),
+    )
+    m3.metric("Entry Events", f"{total_entering:,}", help="Sum of first-review events per category (users can enter multiple categories).")
+    m4.metric("Categories", f"{len(graph.categories)}")
+
+    st.markdown("---")
+
+    # --- Retention finding ---
+    st.subheader("Retention")
+    high_ret_sorted = sorted(
+        graph.categories.items(), key=lambda kv: kv[1].retention_rate, reverse=True
+    )
+    top_name, top_cat = high_ret_sorted[0]
+    n_high = len(high_ret)
+
+    st.markdown(
+        f"**{n_high} of {len(graph.categories)} categories hit high-retention status.** "
+        f"**{_fmt(top_name)}** leads at **{top_cat.retention_rate:.1%}** "
+        f"({top_cat.observable_user_count():,} observable users)."
+    )
+
+    st.markdown("---")
+
+    # --- Expansion finding ---
+    st.subheader("Expansion")
+    st.caption(
+        "ExpansionDifference(A → B) = P(reviewed B within 90d | first category = A) "
+        "minus the same probability for users whose first category was not A. "
+        "Reported in **percentage points (pp)** — absolute difference, not relative uplift."
+    )
+    _, diff_matrix, _ = get_expansion_data(graph)
+    _stack = diff_matrix.stack(dropna=True)
+    if _stack.empty:
+        st.info("No expansion pathway data available.")
+    else:
+        (entry_cat, dest_cat), top_diff = _stack.idxmax(), _stack.max()
+        if top_diff > 0:
+            st.markdown(
+                f"**Strongest pathway: {_fmt(entry_cat)} → {_fmt(dest_cat)}.** "
+                f"Users whose first category is **{_fmt(entry_cat)}** reach **{_fmt(dest_cat)}** "
+                f"within 90 days at a rate **{top_diff * 100:+.1f} pp** above the baseline "
+                f"(the rate for users who started elsewhere)."
+            )
+        else:
+            st.markdown(
+                f"No above-baseline pathway was detected across the 4 categories. "
+                f"The least-negative pathway is **{_fmt(entry_cat)} → {_fmt(dest_cat)}** at "
+                f"**{top_diff * 100:+.1f} pp** relative to baseline."
+            )
+
+    st.markdown("---")
+
+    # --- Segmentation finding (only if ML already ran this session) ---
+    st.subheader("User Segmentation")
+    if "ml_ran" in st.session_state:
+        ml = get_ml_results(graph)
+        _profiles = ml["cluster_profiles"]
+        _k = ml["k_result"]["best_k"]
+        _largest = _profiles.sort_values("size", ascending=False).iloc[0]
+        st.markdown(
+            f"**{_k} behavioral segments identified.** Largest segment: "
+            f"**{_largest['label']}** ({int(_largest['size']):,} users)."
+        )
+        _seg_bar = px.bar(
+            _profiles.reset_index(),
+            x="label",
+            y="size",
+            color="label",
+            labels={"label": "Segment", "size": "User Count"},
+        )
+        _seg_bar.update_layout(showlegend=False, height=260, margin=dict(t=10, b=10))
+        st.plotly_chart(_seg_bar, use_container_width=True)
+    else:
+        st.info(
+            "Click **User Segmentation** in the sidebar and run the analysis to see "
+            "behavioral clusters (K-means). Segment breakdown will appear here after."
         )
 
     st.markdown("---")
 
-    sort_by = st.selectbox(
-        "Sort bars by",
-        ["Retention Rate", "Entering Users", "Observable Users"],
-    )
-    sorted_df = rankings_df.sort_values(sort_by, ascending=True)
-
-    fig_bar = px.bar(
-        sorted_df,
-        x="Retention Rate",
-        y="Category",
-        orientation="h",
-        color="High Retention",
-        color_discrete_map={True: "#2ecc71", False: "#3498db"},
-        text=sorted_df["Retention Rate"].apply(lambda v: f"{v:.1%}"),
-        title="Retention Rate by Category",
-        labels={"Retention Rate": "Retention Rate", "Category": ""},
-    )
-    fig_bar.update_traces(textposition="outside")
-    fig_bar.update_layout(xaxis_tickformat=".0%", height=350, legend_title="High Retention")
-    st.plotly_chart(fig_bar, use_container_width=True)
-
-    fig_scatter = px.scatter(
-        rankings_df,
-        x="Entering Users",
-        y="Retention Rate",
-        size="Observable Users",
-        color="High Retention",
-        text="Category",
-        color_discrete_map={True: "#2ecc71", False: "#3498db"},
-        title="Retention Rate vs. User Volume",
-        labels={"Entering Users": "Entering Users (all)", "Retention Rate": "Retention Rate"},
-    )
-    fig_scatter.update_traces(textposition="top center")
-    fig_scatter.update_layout(yaxis_tickformat=".0%", height=400)
-    st.plotly_chart(fig_scatter, use_container_width=True)
-
-    st.markdown("### Rankings Table")
-    display_df = rankings_df.drop(columns=["Category Key"]).copy()
-    display_df["Retention Rate"] = display_df["Retention Rate"].apply(lambda v: f"{v:.2%}")
-    display_df["Entering Users"] = display_df["Entering Users"].apply(lambda v: f"{v:,}")
-    display_df["Observable Users"] = display_df["Observable Users"].apply(lambda v: f"{v:,}")
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
-
-    with st.expander("What does 'High Retention' mean?"):
+    # --- Where to go next ---
+    st.subheader("Where to go next")
+    n1, n2, n3 = st.columns(3)
+    with n1:
         st.markdown(
-            "A category is **high-retention** if its retention rate falls in the **top quartile** "
-            "of all 4 category retention rates, AND it has at least 30 observable users.  \n\n"
-            "With 4 categories, the top quartile is the top 1 (or tied top 2) by retention rate. "
-            "High-retention categories are the **destination categories** in expansion pathway analysis."
+            "**Semantic Search**  \n"
+            "Ask a natural-language question across 100K reviews. "
+            "Gemini 2.5 Flash synthesizes themes, summary, and supporting quotes."
+        )
+    with n2:
+        st.markdown(
+            "**Expansion Pathways**  \n"
+            "Heatmaps and a network graph showing how users move between "
+            "categories within 90 days of their first review."
+        )
+    with n3:
+        st.markdown(
+            "**Category Detail**  \n"
+            "Drill into one category: rankings, inbound/outbound transitions, "
+            "and expansion pathways into high-retention destinations."
         )
 
-# ===========================================================================
-# Page 2 — Category Filter
-# ===========================================================================
-
-elif page == "Category Filter":
-    st.title("Category Filter")
     st.caption(
-        "Use the controls below to narrow the category list by retention rate and user volume."
+        "See the **Limitations** page for methodology caveats "
+        "(right-censoring, top-quartile with N=4, sampling, etc.)."
     )
-
-    max_entering = int(rankings_df["Entering Users"].max())
-    max_ret = float(rankings_df["Retention Rate"].max())
-
-    st.sidebar.markdown("### Filters")
-    min_retention = st.sidebar.slider(
-        "Min Retention Rate", 0.0, max(max_ret, 0.01), 0.0, step=0.01, format="%.2f"
-    )
-    min_users = st.sidebar.slider(
-        "Min Entering Users", 0, max_entering, 0, step=max(1, max_entering // 100)
-    )
-    show_high_only = st.sidebar.checkbox("High-Retention only")
-
-    filtered = rankings_df[
-        (rankings_df["Retention Rate"] >= min_retention)
-        & (rankings_df["Entering Users"] >= min_users)
-    ]
-    if show_high_only:
-        filtered = filtered[filtered["High Retention"]]
-
-    n_total = len(rankings_df)
-    n_match = len(filtered)
-    st.info(f"{n_match} of {n_total} categories match the current filters.")
-
-    if filtered.empty:
-        st.warning(
-            "No categories match the current filter settings. "
-            "Try lowering the minimum retention rate or user count."
-        )
-    else:
-        sorted_filtered = filtered.sort_values("Retention Rate", ascending=True)
-        fig = px.bar(
-            sorted_filtered,
-            x="Retention Rate",
-            y="Category",
-            orientation="h",
-            color="High Retention",
-            color_discrete_map={True: "#2ecc71", False: "#3498db"},
-            text=sorted_filtered["Retention Rate"].apply(lambda v: f"{v:.1%}"),
-            title=f"Filtered Categories ({n_match} shown)",
-        )
-        fig.update_traces(textposition="outside")
-        fig.update_layout(xaxis_tickformat=".0%", height=max(300, n_match * 80 + 100))
-        st.plotly_chart(fig, use_container_width=True)
-
-        display_df = filtered.drop(columns=["Category Key"]).copy()
-        display_df["Retention Rate"] = display_df["Retention Rate"].apply(lambda v: f"{v:.2%}")
-        display_df["Entering Users"] = display_df["Entering Users"].apply(lambda v: f"{v:,}")
-        display_df["Observable Users"] = display_df["Observable Users"].apply(lambda v: f"{v:,}")
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
 
 # ===========================================================================
-# Page 3 — Review Search (RAG + LLM synthesis)
+# Page 1 — Semantic Search (RAG + LLM synthesis)
 # ===========================================================================
 
-elif page == "Review Search":
-    st.title("Review Search")
+elif page == "Semantic Search":
+    st.title("Semantic Search")
     st.caption(
         "Semantic search over 2.5M reviews using sentence embeddings and Qdrant. "
         "The top 25 most relevant results are passed to an LLM for theme synthesis. "
@@ -439,7 +419,7 @@ elif page == "Review Search":
     # Sidebar filters (only shown on this page)
     # ------------------------------------------------------------------
     _all_cats = sorted(graph.categories.keys())
-    st.sidebar.markdown("### Review Search Filters")
+    st.sidebar.markdown("### Semantic Search Filters")
     _sel_cats = st.sidebar.multiselect(
         "Categories",
         options=_all_cats,
@@ -632,7 +612,7 @@ elif page == "Review Search":
         st.warning("Please enter a query before clicking Search.")
 
 # ===========================================================================
-# Page 4 — Expansion Pathways
+# Page 2 — Expansion Pathways
 # ===========================================================================
 
 elif page == "Expansion Pathways":
@@ -790,11 +770,95 @@ elif page == "Expansion Pathways":
         )
 
 # ===========================================================================
-# Page 4 — Category Detail
+# Page 4 — Category Detail (overview + per-category drill-down)
 # ===========================================================================
 
 elif page == "Category Detail":
     st.title("Category Detail")
+    st.caption(
+        "Retention rate = fraction of **observable** users retained (2+ reviews on 2+ distinct days "
+        "within 90 days of first review). Users whose first review falls after 2023-04-02 are "
+        "excluded from both numerator and denominator (right-censoring guard)."
+    )
+
+    # -------------------------------------------------------------------
+    # Overview section (category rankings across all 4 categories)
+    # -------------------------------------------------------------------
+    st.subheader("Category Overview")
+
+    # Metric cards
+    cols = st.columns(len(graph.categories))
+    for i, (name, cat) in enumerate(
+        sorted(graph.categories.items(), key=lambda kv: kv[1].retention_rate, reverse=True)
+    ):
+        badge = " (HIGH)" if name in high_ret else ""
+        cols[i].metric(
+            label=_fmt(name) + badge,
+            value=f"{cat.retention_rate:.1%}",
+            help=(
+                f"Observable users: {cat.observable_user_count():,}  \n"
+                f"Entering users: {cat.entering_user_count:,}  \n"
+                f"Right-censored (excluded): {cat.entering_user_count - cat.observable_user_count():,}"
+            ),
+        )
+
+    sort_by = st.selectbox(
+        "Sort bars by",
+        ["Retention Rate", "Entering Users", "Observable Users"],
+    )
+    sorted_df = rankings_df.sort_values(sort_by, ascending=True)
+
+    fig_bar = px.bar(
+        sorted_df,
+        x="Retention Rate",
+        y="Category",
+        orientation="h",
+        color="High Retention",
+        color_discrete_map={True: "#2ecc71", False: "#3498db"},
+        text=sorted_df["Retention Rate"].apply(lambda v: f"{v:.1%}"),
+        title="Retention Rate by Category",
+        labels={"Retention Rate": "Retention Rate", "Category": ""},
+    )
+    fig_bar.update_traces(textposition="outside")
+    fig_bar.update_layout(xaxis_tickformat=".0%", height=350, legend_title="High Retention")
+    st.plotly_chart(fig_bar, use_container_width=True)
+
+    fig_scatter = px.scatter(
+        rankings_df,
+        x="Entering Users",
+        y="Retention Rate",
+        size="Observable Users",
+        color="High Retention",
+        text="Category",
+        color_discrete_map={True: "#2ecc71", False: "#3498db"},
+        title="Retention Rate vs. User Volume",
+        labels={"Entering Users": "Entering Users (all)", "Retention Rate": "Retention Rate"},
+    )
+    fig_scatter.update_traces(textposition="top center")
+    fig_scatter.update_layout(yaxis_tickformat=".0%", height=400)
+    st.plotly_chart(fig_scatter, use_container_width=True)
+
+    st.markdown("### Rankings Table")
+    display_df = rankings_df.drop(columns=["Category Key"]).copy()
+    display_df["Retention Rate"] = display_df["Retention Rate"].apply(lambda v: f"{v:.2%}")
+    display_df["Entering Users"] = display_df["Entering Users"].apply(lambda v: f"{v:,}")
+    display_df["Observable Users"] = display_df["Observable Users"].apply(lambda v: f"{v:,}")
+    st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+    with st.expander("What does 'High Retention' mean?"):
+        st.markdown(
+            "A category is **high-retention** if its retention rate falls in the **top quartile** "
+            "of all 4 category retention rates, AND it has at least 30 observable users.  \n\n"
+            "With 4 categories, the top quartile is the top 1 (or tied top 2) by retention rate. "
+            "High-retention categories are the **destination categories** in expansion pathway analysis."
+        )
+
+    st.markdown("---")
+
+    # -------------------------------------------------------------------
+    # Per-category drill-down
+    # -------------------------------------------------------------------
+    st.subheader("Per-Category Drill-Down")
 
     selected = st.selectbox(
         "Select category",
@@ -921,218 +985,227 @@ can be retained in {_fmt(selected)} and not retained in another category, or vic
         )
 
 # ===========================================================================
-# Page 5 — ML Insights
+# Page 3 — User Segmentation
 # ===========================================================================
 
-elif page == "ML Insights":
-    st.title("ML Insights")
+elif page == "User Segmentation":
+    st.title("User Segmentation")
     st.caption(
-        "This page runs user clustering (K-means) and retention prediction (Random Forest) "
-        "on the full dataset. Results are cached after the first run."
+        "This page runs user clustering (K-means) on the full dataset. "
+        "Results are cached after the first run."
     )
 
     st.info(
         "**Descriptive vs. Predictive**: Category rankings, retention rates, and expansion "
         "pathways (pages 1-4) are *descriptive* graph analysis derived from the review data. "
-        "The models on this page are *predictive* — they learn patterns from features and "
-        "generalize to unseen users. The ROC AUC here is a held-out test-set estimate."
+        "The clustering on this page is *unsupervised* — it learns behavioral patterns from "
+        "review features without a labeled target."
     )
 
-    run_ml = st.button("Run ML Analysis", type="primary")
+    run_ml = st.button("Run Segmentation Analysis", type="primary")
 
     if run_ml or "ml_ran" in st.session_state:
         st.session_state["ml_ran"] = True
 
-        with st.spinner("Running ML pipeline (first run: 30-90 seconds)..."):
+        with st.spinner("Running clustering pipeline (first run: 30-90 seconds)..."):
             ml = get_ml_results(graph)
 
         user_feat_df = ml["user_feat_df"]
         k_result = ml["k_result"]
         cluster_result = ml["cluster_result"]
         cluster_profiles = ml["cluster_profiles"]
-        ret_result = ml["ret_result"]
-
-        tab_clusters, tab_retention = st.tabs(["User Clusters", "Retention Prediction"])
 
         # -------------------------------------------------------------------
-        # Tab 1: User Clusters
+        # Segment Sizes (interactive cluster bar chart)
         # -------------------------------------------------------------------
-        with tab_clusters:
-            st.subheader("User Segmentation (K-means)")
-            st.caption(
-                f"Best k = {k_result['best_k']} (chosen by silhouette score). "
-                f"Total users clustered: {len(user_feat_df):,}. "
-                "Clustering uses MiniBatchKMeans on all users; k search subsamples to 200K."
-            )
-
-            # Elbow + silhouette plots
-            c1, c2 = st.columns(2)
-            with c1:
-                fig_elbow, ax_elbow = plt.subplots(figsize=(5, 3))
-                from ml.clustering import plot_elbow, plot_silhouette
-                plot_elbow(k_result, ax=ax_elbow)
-                plt.tight_layout()
-                st.pyplot(fig_elbow)
-                plt.close(fig_elbow)
-            with c2:
-                fig_sil, ax_sil = plt.subplots(figsize=(5, 3))
-                plot_silhouette(k_result, ax=ax_sil)
-                plt.tight_layout()
-                st.pyplot(fig_sil)
-                plt.close(fig_sil)
-
-            # Interactive cluster bar chart
-            st.markdown("### Segment Sizes — click a bar to explore that segment")
-            fig_bar_cl = px.bar(
-                cluster_profiles.reset_index(),
-                x="label",
-                y="size",
-                color="label",
-                title="User Segments",
-                labels={"label": "Segment", "size": "User Count"},
-            )
-            fig_bar_cl.update_layout(showlegend=False, height=380)
-            event = st.plotly_chart(
-                fig_bar_cl, on_select="rerun", key="cluster_chart", use_container_width=True
-            )
-
-            # Segment drill-down on click
-            if event and event.selection and event.selection.points:
-                clicked_label = event.selection.points[0]["x"]
-                segment_df = user_feat_df[user_feat_df["cluster_name"] == clicked_label]
-
-                st.subheader(f"Segment: {clicked_label}")
-                sc1, sc2, sc3 = st.columns(3)
-                sc1.metric("Users", f"{len(segment_df):,}")
-                sc2.metric(
-                    "Avg Reviews",
-                    f"{segment_df['total_review_count'].mean():.1f}",
-                )
-                sc3.metric(
-                    "Multi-Category",
-                    f"{segment_df['is_multi_category'].mean():.0%}",
-                )
-
-                # Distribution plots
-                d1, d2, d3 = st.columns(3)
-                d1.plotly_chart(
-                    px.histogram(
-                        segment_df,
-                        x="total_review_count",
-                        title="Review Count Distribution",
-                        nbins=30,
-                    ),
-                    use_container_width=True,
-                )
-                d2.plotly_chart(
-                    px.histogram(
-                        segment_df,
-                        x="avg_rating",
-                        title="Avg Rating Distribution",
-                        nbins=20,
-                    ),
-                    use_container_width=True,
-                )
-                d3.plotly_chart(
-                    px.histogram(
-                        segment_df,
-                        x="time_span_days",
-                        title="Active Span (days)",
-                        nbins=30,
-                    ),
-                    use_container_width=True,
-                )
-
-                # Segment vs population comparison
-                st.subheader("vs. Overall Population")
-                compare_cols = [
-                    "total_review_count",
-                    "avg_rating",
-                    "category_count",
-                    "time_span_days",
-                    "is_multi_category",
-                ]
-                compare_df = pd.DataFrame(
-                    {
-                        "Feature": compare_cols,
-                        "Segment Mean": [segment_df[c].mean() for c in compare_cols],
-                        "Population Mean": [user_feat_df[c].mean() for c in compare_cols],
-                    }
-                )
-                compare_df["Segment Mean"] = compare_df["Segment Mean"].round(3)
-                compare_df["Population Mean"] = compare_df["Population Mean"].round(3)
-                st.dataframe(compare_df, use_container_width=True, hide_index=True)
-            else:
-                st.caption("Click a bar above to explore that segment in detail.")
-
-            # Cluster profiles table
-            with st.expander("Full Cluster Profiles"):
-                profile_display = cluster_profiles.copy().round(3)
-                st.dataframe(profile_display, use_container_width=True)
+        st.markdown("### Segment Sizes — click a bar to explore that segment")
+        fig_bar_cl = px.bar(
+            cluster_profiles.reset_index(),
+            x="label",
+            y="size",
+            color="label",
+            title="User Segments",
+            labels={"label": "Segment", "size": "User Count"},
+        )
+        fig_bar_cl.update_layout(showlegend=False, height=380)
+        event = st.plotly_chart(
+            fig_bar_cl, on_select="rerun", key="cluster_chart", use_container_width=True
+        )
 
         # -------------------------------------------------------------------
-        # Tab 2: Retention Prediction
+        # User Segmentation (K-means) — elbow + silhouette diagnostics
         # -------------------------------------------------------------------
-        with tab_retention:
-            st.subheader("Retention Prediction (Random Forest)")
-            st.caption(
-                "Target: will a user post 2+ reviews on 2+ distinct days within 90 days? "
-                "Features are derived from the user's first review and prior history only "
-                "(no look-ahead leakage). Users are split by user_id to prevent "
-                "the same user appearing in both train and test."
+        st.subheader("User Segmentation (K-means)")
+        st.caption(
+            f"Best k = {k_result['best_k']} (chosen by silhouette score). "
+            f"Total users clustered: {len(user_feat_df):,}. "
+            "Clustering uses MiniBatchKMeans on all users; k search subsamples to 200K."
+        )
+
+        # Elbow + silhouette plots
+        c1, c2 = st.columns(2)
+        with c1:
+            fig_elbow, ax_elbow = plt.subplots(figsize=(5, 3))
+            from ml.clustering import plot_elbow, plot_silhouette
+            plot_elbow(k_result, ax=ax_elbow)
+            plt.tight_layout()
+            st.pyplot(fig_elbow)
+            plt.close(fig_elbow)
+        with c2:
+            fig_sil, ax_sil = plt.subplots(figsize=(5, 3))
+            plot_silhouette(k_result, ax=ax_sil)
+            plt.tight_layout()
+            st.pyplot(fig_sil)
+            plt.close(fig_sil)
+
+        # Segment drill-down on click
+        if event and event.selection and event.selection.points:
+            clicked_label = event.selection.points[0]["x"]
+            segment_df = user_feat_df[user_feat_df["cluster_name"] == clicked_label]
+
+            st.subheader(f"Segment: {clicked_label}")
+            sc1, sc2, sc3 = st.columns(3)
+            sc1.metric("Users", f"{len(segment_df):,}")
+            sc2.metric(
+                "Avg Reviews",
+                f"{segment_df['total_review_count'].mean():.1f}",
+            )
+            sc3.metric(
+                "Multi-Category",
+                f"{segment_df['is_multi_category'].mean():.0%}",
             )
 
-            auc = ret_result["roc_auc"]
-            if np.isnan(auc):
-                st.warning("ROC AUC could not be computed (test set may be single-class).")
-            else:
-                st.metric(
-                    "ROC AUC (held-out test set)",
-                    f"{auc:.3f}",
-                    help=(
-                        "Area under the ROC curve on the held-out test set. "
-                        "0.5 = random, 1.0 = perfect. Expected range: 0.55-0.75 given "
-                        "that retention is largely driven by user behavior not captured in features."
-                    ),
-                )
+            # Distribution plots
+            d1, d2, d3 = st.columns(3)
+            d1.plotly_chart(
+                px.histogram(
+                    segment_df,
+                    x="total_review_count",
+                    title="Review Count Distribution",
+                    nbins=30,
+                ),
+                use_container_width=True,
+            )
+            d2.plotly_chart(
+                px.histogram(
+                    segment_df,
+                    x="avg_rating",
+                    title="Avg Rating Distribution",
+                    nbins=20,
+                ),
+                use_container_width=True,
+            )
+            d3.plotly_chart(
+                px.histogram(
+                    segment_df,
+                    x="time_span_days",
+                    title="Active Span (days)",
+                    nbins=30,
+                ),
+                use_container_width=True,
+            )
 
-            mc1, mc2 = st.columns(2)
-            with mc1:
-                fig_roc, ax_roc = plt.subplots(figsize=(5, 4))
-                from ml.retention_model import plot_roc_curve, plot_feature_importance
-                if not np.isnan(auc):
-                    plot_roc_curve(ret_result, ax=ax_roc)
-                else:
-                    ax_roc.text(0.5, 0.5, "ROC unavailable", ha="center", va="center")
-                plt.tight_layout()
-                st.pyplot(fig_roc)
-                plt.close(fig_roc)
+            # Segment vs population comparison
+            st.subheader("vs. Overall Population")
+            compare_cols = [
+                "total_review_count",
+                "avg_rating",
+                "category_count",
+                "time_span_days",
+                "is_multi_category",
+            ]
+            compare_df = pd.DataFrame(
+                {
+                    "Feature": compare_cols,
+                    "Segment Mean": [segment_df[c].mean() for c in compare_cols],
+                    "Population Mean": [user_feat_df[c].mean() for c in compare_cols],
+                }
+            )
+            compare_df["Segment Mean"] = compare_df["Segment Mean"].round(3)
+            compare_df["Population Mean"] = compare_df["Population Mean"].round(3)
+            st.dataframe(compare_df, use_container_width=True, hide_index=True)
+        else:
+            st.caption("Click a bar above to explore that segment in detail.")
 
-            with mc2:
-                fig_imp, ax_imp = plt.subplots(figsize=(6, 4))
-                plot_feature_importance(ret_result, ax=ax_imp, top_n=10)
-                plt.tight_layout()
-                st.pyplot(fig_imp)
-                plt.close(fig_imp)
+        # Cluster profiles table
+        with st.expander("Full Cluster Profiles"):
+            profile_display = cluster_profiles.copy().round(3)
+            st.dataframe(profile_display, use_container_width=True)
 
-            with st.expander("Classification Report"):
-                st.text(ret_result["classification_report"])
-
-            with st.expander("Model Caveats"):
-                st.markdown(
-                    """
-- **Sampled**: If the retention feature dataset exceeded 50,000 rows, a random 50K sample was used.
-- **category_size leakage note**: The `category_size` feature counts all observable entrants,
-  including those who entered after the user being scored. This is acceptable for retrospective
-  analysis but would be look-ahead leakage in point-in-time deployment.
-- **Right-censoring applies here too**: Only observable users (entering before 2023-04-02) are
-  included in the feature set.
-- **Four categories only**: Results reflect Amazon review behavior in Electronics, Video Games,
-  Software, and Cell Phones & Accessories during Jan-Jun 2023.
-"""
-                )
     else:
         st.markdown(
-            "Click **Run ML Analysis** above to run user clustering and retention prediction. "
+            "Click **Run Segmentation Analysis** above to run user clustering. "
             "First run takes 30-90 seconds; subsequent loads are instant (cached)."
         )
+
+# ===========================================================================
+# Page 5 — Limitations
+# ===========================================================================
+
+elif page == "Limitations":
+    st.title("Limitations")
+    st.caption(
+        "Methodology caveats that should be kept in mind when interpreting any "
+        "number on this dashboard."
+    )
+
+    st.markdown(
+        """
+### 90-day retention window
+Retention is defined as: *2+ reviews on 2+ distinct UTC days within 90 days of a user's
+first review in that category*. Longer-term loyalty patterns (e.g. annual repurchase
+cycles for software) are invisible to this definition.
+
+### Right-censoring cutoff (2023-04-02)
+The dataset ends 2023-07-01 UTC. Users whose first review in a category falls after
+**2023-04-02** cannot be observed for a full 90-day window, so they are excluded from
+both the numerator and denominator of retention rate. The per-category "Right-Censored"
+counts on the Category Detail page show how many users are dropped.
+
+### Top-quartile with N=4 is circular
+A category is labeled **high-retention** if its retention rate is in the top quartile
+of all 4 categories (and has at least 30 observable users). With N=4, the top quartile
+is the top 1 (or tied top 2) — so there is *always* at least one high-retention category
+by construction. Read "high-retention" as *"stickiest among these four"*, not as an
+absolute threshold.
+
+### Expansion differences are point estimates only
+`ExpansionDifference(A → B) = P(B | first = A) − P(B | first ≠ A)` is reported as a
+raw point estimate. There are no confidence intervals and no significance tests.
+Small positive/negative differences should not be over-interpreted.
+
+### Tied first-category timestamps excluded
+If a user's first reviews across multiple categories share the exact same timestamp,
+the user is excluded from expansion cohorts (their "first category" is ambiguous).
+
+### Semantic Search runs on a stratified sample
+The deployed semantic search uses a **100K-point** Qdrant collection (25K per category),
+not the full 2.5M reviews. Rare phrases or long-tail products may be underrepresented.
+Embeddings are `all-MiniLM-L6-v2` (384-dim) — strong on general English but weak on
+domain jargon the model was not exposed to.
+
+### LLM synthesis is non-deterministic
+Gemini 2.5 Flash runs at temperature 0.3. Identical queries will produce similar but
+not byte-identical summaries. The LLM is also instructed to only cite the retrieved
+reviews — if it hallucinates content outside them, that is a failure mode, not an
+intended behavior.
+
+### K-means clustering has no dimension reduction
+Clusters are fit on standardized user features directly (no PCA, UMAP, or t-SNE).
+`MiniBatchKMeans` chooses `k` by silhouette score on a 200K subsample. Cluster labels
+(e.g. "Power reviewer", "One-and-done") are heuristic names assigned after the fact
+based on profile thresholds in `ml/clustering.py` — they are interpretive, not
+ground-truth segments.
+
+### Dataset scope
+- **Categories**: Only 4 (Electronics, Video Games, Software, Cell Phones & Accessories).
+  Findings do not generalize beyond these.
+- **verified_purchase = True** only. Unverified reviews are excluded.
+- **Date window**: Jan 1 – Jun 30, 2023. Seasonal or multi-year effects are not captured.
+
+### Source
+Raw data from the [UCSD Amazon Reviews 2023](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023)
+dataset. See `docs/METRICS.md` and `docs/data_quality_report.md` in the repo for full
+definitions and filtering statistics.
+"""
+    )
