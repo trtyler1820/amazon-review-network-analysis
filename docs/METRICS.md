@@ -1,8 +1,10 @@
 # Project Metrics & Definitions
 
-**Phase 1 Analysis: Amazon Reviews Retention and Cross-Category Expansion**
+**Amazon Reviews Retention and Cross-Category Expansion**
 
-This document defines the core metrics used to analyze user retention and expansion patterns in Amazon review data. All calculations are based on the cleaned dataset: January 1, 2023 - June 30, 2023, verified_purchase = True, grouped by parent_asin.
+This document defines the core metrics used to analyze user retention and expansion patterns in Amazon review data. All calculations are based on the cleaned dataset: January 1, 2023 – June 30, 2023, verified_purchase = True, grouped by `parent_asin`.
+
+The implementation lives in `graph_logic/models.py` (classes and retention math) and `graph_logic/analysis.py` (expansion pathways, high-retention classification). The dashboard (`web/app.py`) surfaces these values without redefining them.
 
 ---
 
@@ -140,10 +142,12 @@ ExpansionDifference(Electronics → Video_Games) = 24% − 15% = 9%
 ```
 
 **Interpretation:**
-- **+9% positive difference** = Electronics is a **positive expansion pathway to Video Games**
-- Users entering via Electronics are 9 percentage points MORE likely to explore Video Games than the average user
+- **+9 pp positive difference** = Electronics is a **positive expansion pathway to Video Games**
+- Users entering via Electronics are 9 **percentage points** more likely to explore Video Games than users entering elsewhere — this is an **absolute difference in probabilities**, not a relative uplift (the rate went from 15% → 24%, not from 1.0x → 1.6x).
 - This indicates Electronics → Video Games is an above-baseline customer journey pattern
 - *Note*: This is a raw point estimate; statistical significance is not assessed
+
+**Display convention (dashboard):** The Overview and Expansion Pathways pages report ExpansionDifference in **percentage points (pp)**. A `+9.0 pp` value means the A-cohort probability exceeds the baseline cohort probability by 9 percentage points; it does **not** mean "9% more likely" in a multiplicative sense.
 
 ### Categorization
 
@@ -198,11 +202,11 @@ A category is classified as **high-retention** if:
 ### Setup
 
 **Cleaned dataset:**
-- Date range: Jan 1, 2023 - Jun 30, 2023
+- Date range: Jan 1, 2023 – Jun 30, 2023
 - Categories: Electronics, Video_Games, Software, Cell_Phones_and_Accessories
-- Total scope: 1.8M+ users, 2.5M+ reviews
+- Total scope: 1,832,347 users, 2,523,881 reviews (see `docs/data_quality_report.md`)
 
-*Note: Real numerical results will be populated in Phase 2 after running actual retention and expansion calculations on the cleaned dataset.*
+*The step-by-step process below describes how the retention rates, high-retention set, and expansion pathways are produced. For the actual numerical results, see the Overview page of the dashboard (`streamlit run web/app.py`) or run `python3 -c "from graph_logic.analysis import generate_summary_report; ..."` against the cleaned CSV.*
 
 ### Retention Analysis (Process)
 
@@ -246,7 +250,7 @@ Result: Ranked list of expansion pathways.
 
 ---
 
-## 5. Implementation Notes for Phase 2
+## 5. Implementation Notes
 
 ### Data Structure
 
@@ -284,14 +288,14 @@ Each metric calculation requires:
 
 ### Calculation Order
 
-**Phase 2 implementation should follow this order:**
+**The implementation in `graph_logic/` follows this order:**
 
-1. Load cleaned dataset
-2. Calculate per-user, per-category retention status (is_retained)
-3. Calculate per-category retention rates
-4. Identify high-retention categories (top quartile + min threshold)
-5. Calculate expansion pathways for all category pairs (A → B where B is high-retention)
-6. Generate summary report
+1. Load cleaned dataset (`Graph.from_dataframe(df)`)
+2. Build User/Category/Review objects; compute per-user, per-category retention status (`User.is_retained_in(category)`)
+3. Calculate per-category retention rates (`Category.retention_rate`), restricted to observable users
+4. Identify high-retention categories (top quartile + min threshold) — `identify_high_retention_categories(graph.categories)`
+5. Calculate expansion pathways for all category pairs (A → B where B is high-retention) — `compute_all_expansion_pathways(graph.users, high_ret)`
+6. Generate summary report — `generate_summary_report(graph)`
 
 ---
 
@@ -304,4 +308,4 @@ Each metric calculation requires:
 
 ---
 
-**Status:** Implemented and verified. Right-censoring guard, tie handling, and strict window semantics all in place. 83/83 tests passing including 5 manual spot-checks.
+**Status:** Implemented and verified. Right-censoring guard, tie handling, and strict window semantics all in place. Covered by the `tests/` suite (157 collected tests spanning graph logic, ML features/clustering, RAG pipeline, and web search) plus 5 manual spot-checks documented in the Phase 2 session logs.

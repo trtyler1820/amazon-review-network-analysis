@@ -76,8 +76,8 @@ The cleaning pipeline applies filters in sequence to produce a final dataset of 
   - `parent_asin` = product model (e.g., "iPhone case model X")
   - `asin` = specific variant (e.g., "iPhone case model X in red")
 - **Impact**: Prevents inflating user counts when users review multiple variants of same product
-- **Result**: 369,157 unique parent_asin across all reviews
-- **Variant Ratio**: Average 2.3x variants per product model (e.g., 100 variants grouped to ~43 parent ASINs)
+- **Result (full run)**: 369,782 unique parent_asin across all cleaned reviews
+- **Variant Ratio (full run)**: Category-dependent — Cell Phones 1.83x, Electronics 1.41x, Video Games 1.37x, Software 1.04x (ratio = distinct ASINs / distinct parent ASINs). See `docs/data_quality_report.md` for the per-category breakdown.
 
 **Filter 5: Remove Duplicate (user_id, parent_asin, timestamp) Combinations**
 - **Rationale**: Handles cases where same user submitted multiple reviews for same product at exact same timestamp (data entry error or system glitch)
@@ -94,8 +94,15 @@ The checked-in cleaned dataset may be produced from either:
 - a **full run** (`python3 scripts/clean_data.py`), or
 - a **sample run** (`python3 scripts/clean_data.py --sample-size N`).
 
-For current record counts, category coverage, and date range, use:
-- `docs/data_quality_report.md` (authoritative)
+**Reference full-run totals** (from `docs/data_quality_report.md`, generated 2026-03-28):
+- 2,523,881 cleaned rows
+- 1,832,347 unique users
+- 369,782 unique parent ASINs
+- Date range: 2023-01-01 to 2023-06-30 (UTC)
+- Per-category row counts: Electronics 1,540,147 · Cell Phones 812,853 · Video Games 143,121 · Software 27,760
+
+For the counts tied to the currently checked-in artifact, use:
+- `docs/data_quality_report.md` (authoritative — regenerated on every run)
 - `wc -l data/cleaned/cleaned_reviews.csv` (quick row check)
 
 ---
@@ -243,7 +250,7 @@ python3 scripts/clean_data.py --output-dir /custom/path/data/cleaned
 
 ### Environment
 
-- **Python**: 3.11+ (venv: `/venv/`)
+- **Python**: 3.10+ (venv: `/venv/`)
 - **Key Libraries**: pandas, numpy, datetime
 - **OS**: macOS/Linux (Unix-based for path handling)
 
@@ -292,6 +299,5 @@ Expected output size/counts are run-dependent. Verify against `docs/data_quality
 
 ---
 
-**Last Updated**: 2026-03-27
-**Status**: Methodology/documentation updated; verify current run mode (sample vs full) before Phase 2
-**Next Phase**: Graph logic implementation after confirming full-run artifact (if required)
+**Last Updated**: 2026-04-17
+**Status**: Final. Full-run artifact generated (2,523,881 rows); consumed by graph logic, ML layer, RAG pipeline, and Streamlit dashboard.

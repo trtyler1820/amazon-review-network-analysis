@@ -62,15 +62,17 @@ Raw JSONL (43GB, 4 categories)
 ┌─────────────────────────────────────────┐
 │  Streamlit Dashboard (web/app.py)        │
 │                                          │
-│  • Category rankings by retention rate   │
-│  • Metric filtering & comparison         │
-│  • Expansion pathway visualization       │
-│  • Category detail explorer              │
-│  • ML insights (clusters, predictions)   │
-│  • Review Search                         │
+│  • Overview (landing page, key findings) │
+│  • Semantic Search                       │
 │      Qdrant retrieval → Gemini 2.5 Flash │
 │      synthesis (Key Themes, Summary,     │
 │      Supporting Excerpts)                │
+│  • Expansion Pathways (transition matrix,│
+│      ExpansionDifference heatmap, graph) │
+│  • User Segmentation (K-means clusters + │
+│      retention model ROC/importance)     │
+│  • Category Detail (rankings + drilldown)│
+│  • Limitations                           │
 └─────────────────────────────────────────┘
 ```
 
@@ -87,7 +89,7 @@ Raw JSONL (43GB, 4 categories)
 | Vector search | Qdrant (local on-disk, 100K stratified sample) |
 | LLM synthesis | Google Gemini 2.5 Flash (via `google-generativeai`) |
 | Dashboard | Streamlit, Plotly |
-| Testing | pytest (184 tests, graph/ML layer at 94% coverage) |
+| Testing | pytest (157 tests across graph, ML, RAG, and web layers) |
 
 ## Development Process
 
@@ -276,7 +278,7 @@ python3 scripts/index_qdrant.py --recreate
 # Verify RAG pipeline
 python3 scripts/test_rag_query.py
 
-# Run the test suite (184 tests)
+# Run the test suite (157 tests)
 pytest tests/ -v
 
 # Launch dashboard
