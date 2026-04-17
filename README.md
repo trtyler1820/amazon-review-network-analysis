@@ -1,4 +1,4 @@
-# Amazon Review Network Analysis
+# Amazon Reviews Analysis Dashboard
 
 A full-stack analytics system that models user retention and cross-category expansion patterns from 2.5M Amazon product reviews, combining graph-based behavioral analysis, semantic search over review text, and an interactive dashboard.
 
