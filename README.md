@@ -88,7 +88,8 @@ Raw JSONL (43GB, 4 categories)
 | Embeddings | sentence-transformers (`all-MiniLM-L6-v2`, 384d), PyTorch (MPS) |
 | Vector search | Qdrant (local on-disk, 100K stratified sample) |
 | LLM synthesis | Google Gemini 2.5 Flash (via `google-generativeai`) |
-| Dashboard | Streamlit, Plotly |
+| Dashboard | Streamlit, Plotly, matplotlib |
+| Startup optimization | `scripts/precompute.py` serializes graph + ML artifacts to `data/precomputed/*.pkl`; cold start ~5–7s |
 | Testing | pytest (157 tests across graph, ML, RAG, and web layers) |
 
 ## Development Process
@@ -140,15 +141,6 @@ ExpansionDifference(A → B) = P(B | first = A) − P(B | first ≠ A)
 **High-retention category**: A category whose retention rate is in the top quartile, with at least 30 observable users.
 
 See [`docs/METRICS.md`](docs/METRICS.md) for complete definitions and worked examples.
-
----
-
-## Key Findings
-
-<!-- TODO: Fill in after full dataset analysis is complete -->
-
-- Retention rates, high-retention categories, and expansion pathways will be summarized here
-- See `docs/data_quality_report.md` for dataset statistics
 
 ---
 

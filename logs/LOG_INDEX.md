@@ -26,6 +26,8 @@ Session logs are stored as individual files for token efficiency. Each session g
 | [2026-04-12_session8_review-search-optimization.md](2026-04-12_session8_review-search-optimization.md) | 2026-04-12 | Review Search optimization: sampled Qdrant (100K), switched to Gemini 2.5 Flash, fixed synthesis truncation |
 | [2026-04-16_session10_dashboard-ui-refactor.md](2026-04-16_session10_dashboard-ui-refactor.md) | 2026-04-16 | Dashboard UI refactor: nav reorder, bold active page, Overview + Limitations pages, pp expansion metrics |
 | [2026-04-17_session11_doc-finalization.md](2026-04-17_session11_doc-finalization.md) | 2026-04-17 | Doc finalization: README pages/test counts, data_specs variant ratios + row totals, METRICS pp clarification |
+| [2026-04-17_session12_precompute-fast-start.md](2026-04-17_session12_precompute-fast-start.md) | 2026-04-17 | Streamlit fast-start: scripts/precompute.py serializes graph + expansion + ML to pickles; cold start ~90–180s → ~5–7s |
+| [2026-04-17_session13_ui-fixes.md](2026-04-17_session13_ui-fixes.md) | 2026-04-17 | UI fixes: explainer card HTML bug, mpl_color for segmentation graphs, anchor-card nextgo with ?goto routing, hero title |
 
 ---
 
@@ -61,5 +63,6 @@ Session logs are stored as individual files for token efficiency. Each session g
 - **Phase 1**: Complete. Full cleaned dataset: 2,523,881 rows, 1,832,347 users, 369,782 products.
 - **Phase 2**: Complete. All Codex audit findings implemented. 83/83 tests passing, 94% coverage. Right-censoring, MultiDiGraph, transition fix, 5 spot-checks verified.
 - **ML Layer**: Complete. `ml/` package with Polars/Joblib refactor. 6 audit findings fixed (tied timestamps, user leakage, degenerate labels, censoring tests, pinned integration assertions). 139/139 tests passing.
-- **Phase 3**: Complete. `web/app.py` — 6 pages (Overview, Semantic Search, Expansion Pathways, User Segmentation, Category Detail, Limitations). Nav uses bold-active button pattern. Overview is default landing page with top-line metrics, retention headline, and pp-corrected expansion summary. Semantic Search uses Qdrant (100K sample) + Gemini 2.5 Flash synthesis.
+- **Phase 3**: Complete. `web/app.py` — 6 pages (Overview, Review Synthesis, Expansion Pathways, User Segmentation, Category Detail, Limitations). Nav uses bold-active button pattern. Overview is default landing page with hero title "Amazon Reviews Dashboard", explanation-first metric cards with hover tooltips, retention headline, and anchor-based "Where to go next" cards. Review Synthesis (formerly Semantic Search) uses Qdrant (100K sample) + Gemini 2.5 Flash synthesis.
+- **Startup optimization**: `scripts/precompute.py` serializes Graph + expansion + ML artifacts to `data/precomputed/*.pkl`. Streamlit cold start drops from ~90–180s to ~5–7s. Fallback to live compute preserved if pickles are missing.
 - **Next action**: Phase 4 — finalize docs, clean up, full test suite check. Deadline April 24, 2026.

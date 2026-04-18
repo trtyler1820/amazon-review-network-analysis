@@ -3,8 +3,8 @@ Amazon Reviews Analysis — Streamlit Dashboard (Phase 3)
 
 Six pages:
   1. Overview           — landing page with top-line findings
-  2. Semantic Search    — RAG semantic search + LLM synthesis (Qdrant + Gemini)
-  3. Expansion Pathways — heatmaps + network graph
+  2. Review Synthesis   — RAG semantic search + LLM synthesis (Qdrant + Gemini)
+  3. Expansion Pathways — transition heatmap
   4. User Segmentation  — user clustering (K-means, button-triggered)
   5. Category Detail    — overview (rankings, charts) + per-category drill-down
   6. Limitations        — methodology caveats
@@ -30,11 +30,17 @@ sys.path.insert(0, _PROJECT_ROOT)
 
 DATA_PATH = os.path.join(_PROJECT_ROOT, "data", "cleaned", "cleaned_reviews.csv")
 
+# Pre-computed artifacts written by scripts/precompute.py.
+# When present, they bypass the 90-180s CSV → Graph build + expansion
+# computation + ML pipeline, turning cold start into ~2-5s.
+_PRECOMPUTED_DIR = os.path.join(_PROJECT_ROOT, "data", "precomputed")
+_GRAPH_PKL = os.path.join(_PRECOMPUTED_DIR, "graph.pkl")
+_EXPANSION_PKL = os.path.join(_PRECOMPUTED_DIR, "expansion.pkl")
+_ML_PKL = os.path.join(_PRECOMPUTED_DIR, "ml.pkl")
+
 import matplotlib
 matplotlib.use("Agg")  # non-interactive backend; must precede pyplot import
 import matplotlib.pyplot as plt
-import networkx as nx
-import numpy as np
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -44,6 +50,24 @@ from graph_logic.analysis import (
     identify_high_retention_categories,
 )
 from graph_logic.models import Graph, MAX_ENTRY_DATE, OBSERVATION_END
+from web.theme import (
+    COLOR_HIGH_RET,
+    COLOR_STANDARD,
+    COLORSCALE_AMBER,
+    PALETTE,
+)
+from web.ui import (
+    inject_global_styles,
+    matplotlib_dark,
+    mpl_color,
+    render_divider,
+    render_explainer_card,
+    render_hero,
+    render_page_header,
+    render_sidebar_brand,
+    render_sidebar_section_label,
+    style_plotly,
+)
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -55,27 +79,55 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# Inject global CSS immediately after set_page_config so the dark palette,
+# hero/page-header classes, and button/metric restyles are active for every
+# page below.
+inject_global_styles()
+
 # ---------------------------------------------------------------------------
 # Caching
 # ---------------------------------------------------------------------------
 
 @st.cache_resource(show_spinner=False)
-def load_graph() -> tuple[Graph, float]:
-    """Load CSV and build Graph. Returns (graph, load_time_seconds)."""
+def load_graph() -> tuple[Graph, float, str]:
+    """
+    Load the Graph.
+
+    Fast path: unpickle data/precomputed/graph.pkl (written by
+    scripts/precompute.py). Cold path: rebuild from the cleaned CSV.
+
+    Returns (graph, load_time_seconds, source) where source is
+    "precomputed" or "csv".
+    """
+    import pickle
+
     t0 = time.perf_counter()
+    if os.path.isfile(_GRAPH_PKL):
+        with open(_GRAPH_PKL, "rb") as f:
+            graph = pickle.load(f)
+        return graph, time.perf_counter() - t0, "precomputed"
+
     df = pd.read_csv(DATA_PATH, dtype={"user_id": str, "category_name": str})
     df["date"] = pd.to_datetime(df["date"], format="ISO8601", utc=True)
     graph = Graph.from_dataframe(df)
-    elapsed = time.perf_counter() - t0
-    return graph, elapsed
+    return graph, time.perf_counter() - t0, "csv"
 
 
 @st.cache_resource(show_spinner=False)
 def get_expansion_data(_graph: Graph) -> tuple[pd.DataFrame, pd.DataFrame, set]:
     """
-    Compute transition count matrix, expansion difference matrix, and
-    high-retention category set. All heavy operations cached here.
+    Transition count matrix, expansion difference matrix, and high-retention set.
+
+    Fast path: read data/precomputed/expansion.pkl.
+    Cold path: compute from the live Graph (preserves original behavior).
     """
+    import pickle
+
+    if os.path.isfile(_EXPANSION_PKL):
+        with open(_EXPANSION_PKL, "rb") as f:
+            payload = pickle.load(f)
+        return payload["count_matrix"], payload["diff_matrix"], payload["high_ret"]
+
     high_ret = identify_high_retention_categories(_graph.categories)
     cats = list(_graph.categories.keys())
 
@@ -99,14 +151,20 @@ def get_expansion_data(_graph: Graph) -> tuple[pd.DataFrame, pd.DataFrame, set]:
 @st.cache_resource(show_spinner=False)
 def get_ml_results(_graph: Graph) -> dict:
     """
-    Run ML pipeline: user clustering (K-means).
-    Only called when user clicks the trigger button.
+    User-clustering (K-means) results.
+
+    Fast path: read data/precomputed/ml.pkl.
+    Cold path: run the full pipeline (only triggered by the Run button).
     """
+    import pickle
+
+    if os.path.isfile(_ML_PKL):
+        with open(_ML_PKL, "rb") as f:
+            return pickle.load(f)
+
     from ml.clustering import (
         characterize_clusters,
         find_optimal_k,
-        plot_elbow,
-        plot_silhouette,
         train_clustering,
     )
     from ml.features import build_user_features
@@ -129,6 +187,11 @@ def get_ml_results(_graph: Graph) -> dict:
         "cluster_result": cluster_result,
         "cluster_profiles": cluster_profiles,
     }
+
+
+def _has_precomputed_artifacts() -> bool:
+    """True if all three precomputed pickles exist on disk."""
+    return all(os.path.isfile(p) for p in (_GRAPH_PKL, _EXPANSION_PKL, _ML_PKL))
 
 
 # ---------------------------------------------------------------------------
@@ -159,12 +222,12 @@ def _build_rankings_df(graph: Graph, high_ret: set) -> pd.DataFrame:
 # Sidebar + load
 # ---------------------------------------------------------------------------
 
-st.sidebar.title("Amazon Reviews Dashboard")
-st.sidebar.markdown("---")
+render_sidebar_brand()
+render_sidebar_section_label("Navigate")
 
 _NAV_PAGES = [
     "Overview",
-    "Semantic Search",
+    "Review Synthesis",
     "Expansion Pathways",
     "User Segmentation",
     "Category Detail",
@@ -174,8 +237,19 @@ _NAV_PAGES = [
 if "page" not in st.session_state:
     st.session_state["page"] = _NAV_PAGES[0]
 
+# Anchor-card navigation from the "Where to go next" HTML blocks:
+# clicking one sets `?goto=<page>`, which we route here, then clear the
+# param so the URL stays clean and the click isn't re-fired on next rerun.
+_goto = st.query_params.get("goto")
+if _goto and _goto in _NAV_PAGES:
+    st.session_state["page"] = _goto
+    del st.query_params["goto"]
+    st.rerun()
+
 for _p in _NAV_PAGES:
     _is_active = (_p == st.session_state["page"])
+    # Active page uses **markdown-bold** → <strong>, which the CSS
+    # rule `button:has(strong)` lights up with the amber accent bar.
     _label = f"**{_p}**" if _is_active else _p
     if st.sidebar.button(_label, key=f"nav_{_p}", use_container_width=True):
         st.session_state["page"] = _p
@@ -183,21 +257,33 @@ for _p in _NAV_PAGES:
 
 page = st.session_state["page"]
 
-# Load graph (shows status block on first run)
+# Load graph (shows status block on first run).
+# If precomputed pickles are present, cold-start is a few seconds; otherwise
+# we rebuild from CSV and that takes ~90-180 s (see scripts/precompute.py).
 if "graph_loaded" not in st.session_state:
-    with st.status("Loading data... (first load takes 90-180 seconds)", expanded=True) as status:
-        st.write("Reading cleaned_reviews.csv (2.5M rows)...")
-        graph, load_time = load_graph()
-        st.write("Graph built. Computing high-retention categories...")
-        high_ret = identify_high_retention_categories(graph.categories)
-        st.write("Computing expansion pathways (needed for Overview)...")
-        _count_matrix, _diff_matrix, _ = get_expansion_data(graph)
-        st.write(f"Ready. Load time: {load_time:.0f}s")
+    _fast = _has_precomputed_artifacts()
+    _init_label = (
+        "Loading precomputed data..."
+        if _fast
+        else "Loading data... (first load takes 90-180 seconds)"
+    )
+    with st.status(_init_label, expanded=True) as status:
+        if _fast:
+            st.write("Reading precomputed graph pickle...")
+        else:
+            st.write("Reading cleaned_reviews.csv (2.5M rows)...")
+        graph, load_time, source = load_graph()
+        st.write(
+            f"Graph ready ({source}: {len(graph.users):,} users, "
+            f"{len(graph.categories)} categories)."
+        )
+        _count_matrix, _diff_matrix, high_ret = get_expansion_data(graph)
+        st.write(f"Ready. Load time: {load_time:.1f}s")
         status.update(label="Data loaded.", state="complete", expanded=False)
     st.session_state["graph_loaded"] = True
 else:
-    graph, load_time = load_graph()
-    high_ret = identify_high_retention_categories(graph.categories)
+    graph, load_time, _source = load_graph()
+    _count_matrix, _diff_matrix, high_ret = get_expansion_data(graph)
 
 rankings_df = _build_rankings_df(graph, high_ret)
 
@@ -206,32 +292,71 @@ rankings_df = _build_rankings_df(graph, high_ret)
 # ===========================================================================
 
 if page == "Overview":
-    st.title("Amazon Reviews Dashboard — Overview")
-    st.caption(
-        "2,523,881 verified-purchase reviews across 4 categories "
-        "(Electronics, Video Games, Software, Cell Phones & Accessories) "
-        "from the UCSD Amazon Reviews 2023 dataset. Window: Jan 1 – Jun 30, 2023."
-    )
-
-    # --- Top-line metrics ---
+    # --- Top-line numbers (computed first — also feeds the hero stat row) ---
     total_users = len(graph.users)
     total_observable = sum(c.observable_user_count() for c in graph.categories.values())
     total_entering = sum(c.entering_user_count for c in graph.categories.values())
 
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Unique Users", f"{total_users:,}")
-    m2.metric(
-        "Observable Entries",
-        f"{total_observable:,}",
-        help=(
-            "Sum of per-category entering users whose first review falls on or before "
-            "2023-04-02 (so a full 90-day retention window can be observed)."
+    render_hero(
+        title="Amazon Reviews Dashboard",
+        eyebrow="Retention · Expansion · Semantics",
+        subtitle=(
+            "2.5M verified-purchase reviews across four categories — Electronics, "
+            "Video Games, Software, Cell Phones & Accessories — analyzed for "
+            "90-day retention and cross-category expansion pathways."
         ),
+        stats=[
+            (f"{total_users/1_000_000:.2f}M", "Unique users"),
+            (f"{total_observable:,}", "Observable entries"),
+            (f"{len(graph.categories)}", "Categories"),
+            ("Jan–Jun 2023", "Window"),
+        ],
     )
-    m3.metric("Entry Events", f"{total_entering:,}", help="Sum of first-review events per category (users can enter multiple categories).")
-    m4.metric("Categories", f"{len(graph.categories)}")
 
-    st.markdown("---")
+    # --- Explanation-first cards (live value lives in the hover tooltip) ---
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        render_explainer_card(
+            "Unique Users",
+            "Distinct verified reviewers observed across the four categories in the Jan–Jun 2023 window.",
+            value=f"{total_users:,}",
+            definition=(
+                "Unique users = count of distinct user_id values after verified-purchase "
+                "filtering and 2023-01-01 → 2023-06-30 date clipping."
+            ),
+        )
+    with m2:
+        render_explainer_card(
+            "Observable Entries",
+            "Category entries that can be measured for the full 90-day retention window before the dataset ends.",
+            value=f"{total_observable:,}",
+            definition=(
+                "Sum of per-category entering users whose first review falls on or before "
+                "2023-04-02 (so a full 90-day retention window can be observed)."
+            ),
+        )
+    with m3:
+        render_explainer_card(
+            "Entry Events",
+            "Total first-review events across categories — a user entering multiple categories contributes multiple events.",
+            value=f"{total_entering:,}",
+            definition=(
+                "Sum of first-review events per category. Users can enter multiple categories, "
+                "so this exceeds the unique-user count."
+            ),
+        )
+    with m4:
+        render_explainer_card(
+            "Categories",
+            "Product taxonomies under analysis: Electronics, Video Games, Software, and Cell Phones & Accessories.",
+            value=f"{len(graph.categories)}",
+            definition=(
+                "Four categories chosen from the UCSD Amazon Reviews 2023 dataset. "
+                "Findings are scoped to this set and do not generalize beyond it."
+            ),
+        )
+
+    render_divider()
 
     # --- Retention finding ---
     st.subheader("Retention")
@@ -247,7 +372,7 @@ if page == "Overview":
         f"({top_cat.observable_user_count():,} observable users)."
     )
 
-    st.markdown("---")
+    render_divider()
 
     # --- Expansion finding ---
     st.subheader("Expansion")
@@ -271,12 +396,12 @@ if page == "Overview":
             )
         else:
             st.markdown(
-                f"No above-baseline pathway was detected across the 4 categories. "
+                f"No above-baseline pathway was detected across the 4 categories.\n\n"
                 f"The least-negative pathway is **{_fmt(entry_cat)} → {_fmt(dest_cat)}** at "
                 f"**{top_diff * 100:+.1f} pp** relative to baseline."
             )
 
-    st.markdown("---")
+    render_divider()
 
     # --- Segmentation finding (only if ML already ran this session) ---
     st.subheader("User Segmentation")
@@ -296,7 +421,7 @@ if page == "Overview":
             color="label",
             labels={"label": "Segment", "size": "User Count"},
         )
-        _seg_bar.update_layout(showlegend=False, height=260, margin=dict(t=10, b=10))
+        style_plotly(_seg_bar, showlegend=False, height=260, margin=dict(t=10, b=10))
         st.plotly_chart(_seg_bar, use_container_width=True)
     else:
         st.info(
@@ -304,29 +429,44 @@ if page == "Overview":
             "behavioral clusters (K-means). Segment breakdown will appear here after."
         )
 
-    st.markdown("---")
+    render_divider()
 
-    # --- Where to go next ---
+    # --- Where to go next (clickable cards) ---
     st.subheader("Where to go next")
-    n1, n2, n3 = st.columns(3)
-    with n1:
-        st.markdown(
-            "**Semantic Search**  \n"
+
+    _nextgo = [
+        (
+            "Review Synthesis",
             "Ask a natural-language question across 100K reviews. "
-            "Gemini 2.5 Flash synthesizes themes, summary, and supporting quotes."
-        )
-    with n2:
-        st.markdown(
-            "**Expansion Pathways**  \n"
-            "Heatmaps and a network graph showing how users move between "
-            "categories within 90 days of their first review."
-        )
-    with n3:
-        st.markdown(
-            "**Category Detail**  \n"
+            "Gemini 2.5 Flash synthesizes themes, summary, and supporting quotes.",
+        ),
+        (
+            "Expansion Pathways",
+            "A transition heatmap showing how users move between "
+            "categories within 90 days of their first review.",
+        ),
+        (
+            "Category Detail",
             "Drill into one category: rankings, inbound/outbound transitions, "
-            "and expansion pathways into high-retention destinations."
+            "and expansion pathways into high-retention destinations.",
+        ),
+    ]
+    # Pure-HTML anchor cards — we control the entire DOM, so text-align
+    # behaves exactly as written and isn't subject to Streamlit-button
+    # internal layout. Clicks land on `?goto=<page>` and are routed above.
+    import html as _html
+    _cards_html = '<div class="ar-nextgo-grid">' + "".join(
+        (
+            f'<a class="ar-nextgo-card" href="?goto={_html.escape(title)}" '
+            f'target="_self">'
+            f'<div class="ar-nextgo-card-title">{_html.escape(title)}</div>'
+            f'<div class="ar-nextgo-card-body">{_html.escape(body)}</div>'
+            f'<span class="ar-nextgo-card-arrow" aria-hidden="true">→</span>'
+            f'</a>'
         )
+        for title, body in _nextgo
+    ) + "</div>"
+    st.markdown(_cards_html, unsafe_allow_html=True)
 
     st.caption(
         "See the **Limitations** page for methodology caveats "
@@ -334,15 +474,18 @@ if page == "Overview":
     )
 
 # ===========================================================================
-# Page 1 — Semantic Search (RAG + LLM synthesis)
+# Page 1 — Review Synthesis (RAG + LLM synthesis)
 # ===========================================================================
 
-elif page == "Semantic Search":
-    st.title("Semantic Search")
-    st.caption(
-        "Semantic search over 2.5M reviews using sentence embeddings and Qdrant. "
-        "The top 25 most relevant results are passed to an LLM for theme synthesis. "
-        "Results reflect reviews in the Jan–Jun 2023 observability window only."
+elif page == "Review Synthesis":
+    render_page_header(
+        title="Review Synthesis",
+        eyebrow="RAG · Qdrant · Gemini 2.5 Flash",
+        subtitle=(
+            "Ask a natural-language question across the review corpus. "
+            "Sentence-transformer embeddings retrieve the top 25 most similar reviews; "
+            "Gemini 2.5 Flash synthesizes themes, a 3-sentence summary, and supporting excerpts."
+        ),
     )
 
     # ------------------------------------------------------------------
@@ -412,14 +555,14 @@ elif page == "Semantic Search":
         st.warning(
             "No Gemini API key found. Create a `.env` file in the project root with:  \n"
             "```\nGEMINI_API_KEY=your-key-here\n```  \n"
-            "Semantic search will still work, but LLM synthesis will be skipped."
+            "Review retrieval will still work, but LLM synthesis will be skipped."
         )
 
     # ------------------------------------------------------------------
     # Sidebar filters (only shown on this page)
     # ------------------------------------------------------------------
     _all_cats = sorted(graph.categories.keys())
-    st.sidebar.markdown("### Semantic Search Filters")
+    st.sidebar.markdown("### Review Synthesis Filters")
     _sel_cats = st.sidebar.multiselect(
         "Categories",
         options=_all_cats,
@@ -575,7 +718,7 @@ elif page == "Semantic Search":
                         st.error(f"LLM synthesis failed: {_e}")
 
                 if _synthesis:
-                    st.markdown("---")
+                    render_divider()
                     st.subheader("Synthesis")
                     st.markdown(_synthesis)
             else:
@@ -586,7 +729,7 @@ elif page == "Semantic Search":
             # ------------------------------------------------------------------
             # Raw review context (expandable)
             # ------------------------------------------------------------------
-            st.markdown("---")
+            render_divider()
             with st.expander(f"Raw reviews used as context ({len(_top25)})"):
                 for _i, _hit in enumerate(_top25, 1):
                     _p = _hit.payload or {}
@@ -616,169 +759,61 @@ elif page == "Semantic Search":
 # ===========================================================================
 
 elif page == "Expansion Pathways":
-    st.title("Expansion Pathways")
-    st.caption(
-        "**ExpansionDifference(A → B)** = P(reviewed B within 90d | first category = A) "
-        "minus P(reviewed B within 90d | first category != A).  "
-        "B must be a high-retention category. Positive = above-baseline pathway.  \n"
-        "**Caveat**: These are raw point estimates with no confidence intervals. "
-        "Users entering after 2023-04-02 are excluded (right-censoring). "
-        "Users with tied first-category timestamps are excluded from both cohorts."
+    render_page_header(
+        title="Expansion Pathways",
+        eyebrow="Cross-category · 90-day window",
+        subtitle=(
+            "<strong>ExpansionDifference(A → B)</strong> = P(reviewed B within 90d | first category = A) "
+            "minus P(reviewed B within 90d | first category ≠ A). "
+            "Positive values indicate above-baseline expansion into high-retention destinations. "
+            "Point estimates only — no confidence intervals. Users entering after 2023-04-02 are "
+            "excluded (right-censoring); tied first-category timestamps are also excluded."
+        ),
     )
 
     with st.spinner("Computing expansion pathways (first load only)..."):
-        count_matrix, diff_matrix, high_ret = get_expansion_data(graph)
+        count_matrix, _diff_matrix, high_ret = get_expansion_data(graph)
 
-    view = st.radio(
-        "View",
-        ["Transition Heatmap", "Expansion Difference", "Network Graph"],
-        horizontal=True,
+    # --- Transition Heatmap (only view on this page) ---
+    st.subheader("Category Transition Counts")
+    st.markdown(
+        "Number of **distinct users** who reviewed category A (row) and then later "
+        "reviewed category B (column). Diagonal is masked (self-transitions)."
     )
+    display_count = count_matrix.copy()
+    display_count.index = [_fmt(c) for c in count_matrix.index]
+    display_count.columns = [_fmt(c) for c in count_matrix.columns]
 
-    cats = list(graph.categories.keys())
+    fig_heat = px.imshow(
+        display_count,
+        text_auto=True,
+        color_continuous_scale=COLORSCALE_AMBER,
+        title="User Transition Counts (A → B)",
+        labels={"x": "Destination", "y": "Source", "color": "Users"},
+        aspect="auto",
+    )
+    style_plotly(fig_heat, height=450)
+    st.plotly_chart(fig_heat, use_container_width=True)
 
-    # --- A: Transition Heatmap ---
-    if view == "Transition Heatmap":
-        st.subheader("Category Transition Counts")
-        st.markdown(
-            "Number of **distinct users** who reviewed category A (row) and then later "
-            "reviewed category B (column). Diagonal is masked (self-transitions)."
-        )
-        # Rename axes for display
-        display_count = count_matrix.copy()
-        display_count.index = [_fmt(c) for c in count_matrix.index]
-        display_count.columns = [_fmt(c) for c in count_matrix.columns]
-
-        fig_heat = px.imshow(
-            display_count,
-            text_auto=True,
-            color_continuous_scale="Blues",
-            title="User Transition Counts (A → B)",
-            labels={"x": "Destination", "y": "Source", "color": "Users"},
-            aspect="auto",
-        )
-        fig_heat.update_layout(height=450)
-        st.plotly_chart(fig_heat, use_container_width=True)
-
-        st.caption(
-            "Source: Layer 2 (Category Transition Graph). Edge weight = distinct user count. "
-            "Same-timestamp transitions are excluded (ambiguous direction)."
-        )
-
-    # --- B: Expansion Difference ---
-    elif view == "Expansion Difference":
-        st.subheader("Expansion Difference Matrix")
-        st.markdown(
-            "Each cell = ExpansionDifference(row → column). Green = positive (above-baseline). "
-            "Red = negative (below-baseline). Only high-retention destination categories are shown "
-            "(columns with data). NaN = pair not computed (same category or insufficient cohort)."
-        )
-        # Drop columns that are all NaN (non-high-retention destinations)
-        diff_display = diff_matrix.copy()
-        diff_display = diff_display.loc[:, diff_display.notna().any()]
-        diff_display.index = [_fmt(c) for c in diff_display.index]
-        diff_display.columns = [_fmt(c) for c in diff_display.columns]
-
-        fig_diff = px.imshow(
-            diff_display,
-            text_auto=".2%",
-            color_continuous_scale="RdYlGn",
-            color_continuous_midpoint=0,
-            title="Expansion Difference (A → B)",
-            labels={"x": "Destination (high-retention)", "y": "Entry Category", "color": "Diff"},
-            aspect="auto",
-        )
-        fig_diff.update_layout(height=450)
-        st.plotly_chart(fig_diff, use_container_width=True)
-
-        # Ranked table of pathways
-        st.subheader("Ranked Pathways")
-        pathway_rows = []
-        for entry in cats:
-            for dest in cats:
-                val = diff_matrix.loc[entry, dest]
-                if not np.isnan(val):
-                    pathway_rows.append(
-                        {
-                            "Entry Category": _fmt(entry),
-                            "Destination (high-retention)": _fmt(dest),
-                            "Expansion Difference": val,
-                            "Direction": "Positive" if val > 0 else "Negative/Neutral",
-                        }
-                    )
-        if pathway_rows:
-            pw_df = pd.DataFrame(pathway_rows).sort_values(
-                "Expansion Difference", ascending=False
-            )
-            pw_df["Expansion Difference"] = pw_df["Expansion Difference"].apply(
-                lambda v: f"{v:+.2%}"
-            )
-            st.dataframe(pw_df, use_container_width=True, hide_index=True)
-        else:
-            st.info("No expansion pathway data available.")
-
-    # --- C: Network Graph ---
-    else:
-        st.subheader("Category Transition Network")
-        st.markdown(
-            "Nodes = categories. Green = high-retention. "
-            "Edge width proportional to user count. "
-            "Arrows show direction of transition (source reviewed first)."
-        )
-        G = graph.transition_graph
-        pos = nx.circular_layout(G)
-
-        node_colors = ["#2ecc71" if n in high_ret else "#3498db" for n in G.nodes()]
-        edge_weights = [G[u][v]["user_count"] for u, v in G.edges()]
-        max_w = max(edge_weights) if edge_weights else 1
-        edge_widths = [1 + 4 * (w / max_w) for w in edge_weights]
-
-        fig_net, ax = plt.subplots(figsize=(8, 6))
-        nx.draw_networkx(
-            G,
-            pos=pos,
-            ax=ax,
-            node_color=node_colors,
-            node_size=1800,
-            edge_color="#888888",
-            width=edge_widths,
-            arrows=True,
-            arrowsize=20,
-            font_size=8,
-            font_color="white",
-            font_weight="bold",
-            labels={n: _fmt(n) for n in G.nodes()},
-        )
-        edge_labels = {(u, v): f"{G[u][v]['user_count']:,}" for u, v in G.edges()}
-        nx.draw_networkx_edge_labels(G, pos=pos, edge_labels=edge_labels, ax=ax, font_size=7)
-        ax.set_title("Category Transition Network", fontsize=13)
-        ax.axis("off")
-        # Legend
-        from matplotlib.patches import Patch
-        legend_elements = [
-            Patch(facecolor="#2ecc71", label="High-retention"),
-            Patch(facecolor="#3498db", label="Standard"),
-        ]
-        ax.legend(handles=legend_elements, loc="upper right")
-        plt.tight_layout()
-        st.pyplot(fig_net)
-        plt.close(fig_net)
-
-        st.caption(
-            f"High-retention categories: {', '.join(_fmt(c) for c in sorted(high_ret)) if high_ret else 'none'}. "
-            "Edge labels = distinct user count."
-        )
+    st.caption(
+        "Source: Layer 2 (Category Transition Graph). Edge weight = distinct user count. "
+        "Same-timestamp transitions are excluded (ambiguous direction)."
+    )
 
 # ===========================================================================
 # Page 4 — Category Detail (overview + per-category drill-down)
 # ===========================================================================
 
 elif page == "Category Detail":
-    st.title("Category Detail")
-    st.caption(
-        "Retention rate = fraction of **observable** users retained (2+ reviews on 2+ distinct days "
-        "within 90 days of first review). Users whose first review falls after 2023-04-02 are "
-        "excluded from both numerator and denominator (right-censoring guard)."
+    render_page_header(
+        title="Category Detail",
+        eyebrow="Rankings · Transitions · Drill-down",
+        subtitle=(
+            "Retention rate = fraction of <em>observable</em> users retained "
+            "(2+ reviews on 2+ distinct days within 90 days of first review). "
+            "Users whose first review falls after 2023-04-02 are excluded from "
+            "both numerator and denominator (right-censoring guard)."
+        ),
     )
 
     # -------------------------------------------------------------------
@@ -814,13 +849,18 @@ elif page == "Category Detail":
         y="Category",
         orientation="h",
         color="High Retention",
-        color_discrete_map={True: "#2ecc71", False: "#3498db"},
+        color_discrete_map={True: COLOR_HIGH_RET, False: COLOR_STANDARD},
         text=sorted_df["Retention Rate"].apply(lambda v: f"{v:.1%}"),
         title="Retention Rate by Category",
         labels={"Retention Rate": "Retention Rate", "Category": ""},
     )
-    fig_bar.update_traces(textposition="outside")
-    fig_bar.update_layout(xaxis_tickformat=".0%", height=350, legend_title="High Retention")
+    fig_bar.update_traces(textposition="outside", marker_line_width=0)
+    style_plotly(
+        fig_bar,
+        xaxis=dict(tickformat=".0%"),
+        height=350,
+        legend_title_text="High Retention",
+    )
     st.plotly_chart(fig_bar, use_container_width=True)
 
     fig_scatter = px.scatter(
@@ -830,12 +870,12 @@ elif page == "Category Detail":
         size="Observable Users",
         color="High Retention",
         text="Category",
-        color_discrete_map={True: "#2ecc71", False: "#3498db"},
+        color_discrete_map={True: COLOR_HIGH_RET, False: COLOR_STANDARD},
         title="Retention Rate vs. User Volume",
         labels={"Entering Users": "Entering Users (all)", "Retention Rate": "Retention Rate"},
     )
     fig_scatter.update_traces(textposition="top center")
-    fig_scatter.update_layout(yaxis_tickformat=".0%", height=400)
+    style_plotly(fig_scatter, yaxis=dict(tickformat=".0%"), height=400)
     st.plotly_chart(fig_scatter, use_container_width=True)
 
     st.markdown("### Rankings Table")
@@ -853,7 +893,7 @@ elif page == "Category Detail":
             "High-retention categories are the **destination categories** in expansion pathway analysis."
         )
 
-    st.markdown("---")
+    render_divider()
 
     # -------------------------------------------------------------------
     # Per-category drill-down
@@ -901,7 +941,7 @@ elif page == "Category Detail":
     else:
         st.info(f"{_fmt(selected)} is not in the high-retention set.")
 
-    st.markdown("---")
+    render_divider()
 
     # Transition tables
     t_graph = graph.transition_graph
@@ -941,7 +981,7 @@ elif page == "Category Detail":
 
     # Expansion pathways INTO this category (only if high-retention)
     if selected in high_ret:
-        st.markdown("---")
+        render_divider()
         st.subheader(f"Expansion Pathways Into {_fmt(selected)}")
         st.caption(
             "ExpansionDifference values for entry categories that lead to this "
@@ -965,7 +1005,7 @@ elif page == "Category Detail":
             else:
                 st.info("No expansion pathway data for this destination.")
 
-    st.markdown("---")
+    render_divider()
     with st.expander("Metric Caveats"):
         st.markdown(
             f"""
@@ -989,10 +1029,14 @@ can be retained in {_fmt(selected)} and not retained in another category, or vic
 # ===========================================================================
 
 elif page == "User Segmentation":
-    st.title("User Segmentation")
-    st.caption(
-        "This page runs user clustering (K-means) on the full dataset. "
-        "Results are cached after the first run."
+    render_page_header(
+        title="User Segmentation",
+        eyebrow="Unsupervised · K-means · 12 features",
+        subtitle=(
+            "Runs MiniBatchKMeans on standardized per-user features. "
+            "<em>k</em> is chosen by silhouette score on a 200K subsample; the full user "
+            "population is then labeled. Click a segment bar to drill into its profile."
+        ),
     )
 
     st.info(
@@ -1027,7 +1071,8 @@ elif page == "User Segmentation":
             title="User Segments",
             labels={"label": "Segment", "size": "User Count"},
         )
-        fig_bar_cl.update_layout(showlegend=False, height=380)
+        fig_bar_cl.update_traces(marker_line_width=0)
+        style_plotly(fig_bar_cl, showlegend=False, height=380)
         event = st.plotly_chart(
             fig_bar_cl, on_select="rerun", key="cluster_chart", use_container_width=True
         )
@@ -1042,18 +1087,37 @@ elif page == "User Segmentation":
             "Clustering uses MiniBatchKMeans on all users; k search subsamples to 200K."
         )
 
-        # Elbow + silhouette plots
+        # Elbow + silhouette plots (matplotlib — themed dark)
         c1, c2 = st.columns(2)
         with c1:
             fig_elbow, ax_elbow = plt.subplots(figsize=(5, 3))
             from ml.clustering import plot_elbow, plot_silhouette
             plot_elbow(k_result, ax=ax_elbow)
+            # Recolor the line drawn by plot_elbow to the amber accent before dark-retheming
+            for _line in ax_elbow.get_lines():
+                _line.set_color(PALETTE["accent"])
+            matplotlib_dark(fig_elbow, ax_elbow)
             plt.tight_layout()
             st.pyplot(fig_elbow)
             plt.close(fig_elbow)
         with c2:
             fig_sil, ax_sil = plt.subplots(figsize=(5, 3))
             plot_silhouette(k_result, ax=ax_sil)
+            for _line in ax_sil.get_lines():
+                # The vline (best_k marker) is styled differently — keep its dashed style
+                # but recolor. The main series line becomes amber too.
+                if _line.get_linestyle() == "--":
+                    _line.set_color(PALETTE["accent_bright"])
+                else:
+                    _line.set_color(PALETTE["accent"])
+            matplotlib_dark(fig_sil, ax_sil)
+            # Re-theme the "Best k =" legend added by plot_silhouette
+            _leg = ax_sil.get_legend()
+            if _leg is not None:
+                _leg.get_frame().set_facecolor("#1a1a22")
+                _leg.get_frame().set_edgecolor(mpl_color(PALETTE["border"]))
+                for _t in _leg.get_texts():
+                    _t.set_color(PALETTE["text"])
             plt.tight_layout()
             st.pyplot(fig_sil)
             plt.close(fig_sil)
@@ -1077,33 +1141,22 @@ elif page == "User Segmentation":
 
             # Distribution plots
             d1, d2, d3 = st.columns(3)
-            d1.plotly_chart(
-                px.histogram(
+            _hist_specs = [
+                (d1, "total_review_count", "Review Count Distribution", 30),
+                (d2, "avg_rating", "Avg Rating Distribution", 20),
+                (d3, "time_span_days", "Active Span (days)", 30),
+            ]
+            for _col, _x, _title, _nbins in _hist_specs:
+                _fig_h = px.histogram(
                     segment_df,
-                    x="total_review_count",
-                    title="Review Count Distribution",
-                    nbins=30,
-                ),
-                use_container_width=True,
-            )
-            d2.plotly_chart(
-                px.histogram(
-                    segment_df,
-                    x="avg_rating",
-                    title="Avg Rating Distribution",
-                    nbins=20,
-                ),
-                use_container_width=True,
-            )
-            d3.plotly_chart(
-                px.histogram(
-                    segment_df,
-                    x="time_span_days",
-                    title="Active Span (days)",
-                    nbins=30,
-                ),
-                use_container_width=True,
-            )
+                    x=_x,
+                    title=_title,
+                    nbins=_nbins,
+                    color_discrete_sequence=[PALETTE["accent"]],
+                )
+                _fig_h.update_traces(marker_line_width=0, opacity=0.9)
+                style_plotly(_fig_h, showlegend=False, height=260)
+                _col.plotly_chart(_fig_h, use_container_width=True)
 
             # Segment vs population comparison
             st.subheader("vs. Overall Population")
@@ -1143,69 +1196,98 @@ elif page == "User Segmentation":
 # ===========================================================================
 
 elif page == "Limitations":
-    st.title("Limitations")
-    st.caption(
-        "Methodology caveats that should be kept in mind when interpreting any "
-        "number on this dashboard."
+    render_page_header(
+        title="Limitations",
+        eyebrow="Methodology caveats",
+        subtitle=(
+            "Every number on this dashboard should be read in light of the scope "
+            "constraints and interpretive choices documented below. "
+            "Click any heading to expand."
+        ),
     )
 
+    # Page sentinel — lets styles.py scope the elevated expander styling to
+    # this page only (via body:has()). Hidden so it doesn't take layout space.
     st.markdown(
-        """
-### 90-day retention window
-Retention is defined as: *2+ reviews on 2+ distinct UTC days within 90 days of a user's
-first review in that category*. Longer-term loyalty patterns (e.g. annual repurchase
-cycles for software) are invisible to this definition.
+        '<div class="ar-limitations-page" style="display:none"></div>',
+        unsafe_allow_html=True,
+    )
 
-### Right-censoring cutoff (2023-04-02)
-The dataset ends 2023-07-01 UTC. Users whose first review in a category falls after
-**2023-04-02** cannot be observed for a full 90-day window, so they are excluded from
-both the numerator and denominator of retention rate. The per-category "Right-Censored"
-counts on the Category Detail page show how many users are dropped.
+    _limitations = [
+        (
+            "90-day retention window",
+            "Retention is defined as: *2+ reviews on 2+ distinct UTC days within 90 days "
+            "of a user's first review in that category*. Longer-term loyalty patterns "
+            "(e.g. annual repurchase cycles for software) are invisible to this definition.",
+        ),
+        (
+            "Right-censoring cutoff (2023-04-02)",
+            "The dataset ends 2023-07-01 UTC. Users whose first review in a category falls "
+            "after **2023-04-02** cannot be observed for a full 90-day window, so they are "
+            "excluded from both the numerator and denominator of retention rate. The "
+            "per-category \"Right-Censored\" counts on the Category Detail page show how "
+            "many users are dropped.",
+        ),
+        (
+            "Top-quartile with N=4 is circular",
+            "A category is labeled **high-retention** if its retention rate is in the top "
+            "quartile of all 4 categories (and has at least 30 observable users). With "
+            "N=4, the top quartile is the top 1 (or tied top 2) — so there is *always* at "
+            "least one high-retention category by construction. Read \"high-retention\" as "
+            "*\"stickiest among these four\"*, not as an absolute threshold.",
+        ),
+        (
+            "Expansion differences are point estimates only",
+            "`ExpansionDifference(A → B) = P(B | first = A) − P(B | first ≠ A)` is reported "
+            "as a raw point estimate. There are no confidence intervals and no significance "
+            "tests. Small positive/negative differences should not be over-interpreted.",
+        ),
+        (
+            "Tied first-category timestamps excluded",
+            "If a user's first reviews across multiple categories share the exact same "
+            "timestamp, the user is excluded from expansion cohorts (their \"first "
+            "category\" is ambiguous).",
+        ),
+        (
+            "Review Synthesis runs on a stratified sample",
+            "The deployed review-synthesis retrieval layer uses a **100K-point** Qdrant "
+            "collection (25K per category), not the full 2.5M reviews. Rare phrases or "
+            "long-tail products may be underrepresented. Embeddings are "
+            "`all-MiniLM-L6-v2` (384-dim) — strong on general English but weak on domain "
+            "jargon the model was not exposed to.",
+        ),
+        (
+            "LLM synthesis is non-deterministic",
+            "Gemini 2.5 Flash runs at temperature 0.3. Identical queries will produce "
+            "similar but not byte-identical summaries. The LLM is also instructed to only "
+            "cite the retrieved reviews — if it hallucinates content outside them, that "
+            "is a failure mode, not an intended behavior.",
+        ),
+        (
+            "K-means clustering uses heuristic segment labels",
+            "`MiniBatchKMeans` chooses `k` by silhouette score on a 200K subsample. "
+            "Cluster labels (e.g. \"Power reviewer\", \"One-and-done\") are heuristic "
+            "names assigned after the fact based on profile thresholds in "
+            "`ml/clustering.py` — they are interpretive, not ground-truth segments.",
+        ),
+        (
+            "Dataset scope",
+            "- **Categories**: Only 4 (Electronics, Video Games, Software, Cell Phones & "
+            "Accessories). Findings do not generalize beyond these.\n"
+            "- **verified_purchase = True** only. Unverified reviews are excluded.\n"
+            "- **Date window**: Jan 1 – Jun 30, 2023. Seasonal or multi-year effects are "
+            "not captured.",
+        ),
+    ]
 
-### Top-quartile with N=4 is circular
-A category is labeled **high-retention** if its retention rate is in the top quartile
-of all 4 categories (and has at least 30 observable users). With N=4, the top quartile
-is the top 1 (or tied top 2) — so there is *always* at least one high-retention category
-by construction. Read "high-retention" as *"stickiest among these four"*, not as an
-absolute threshold.
+    for _heading, _body in _limitations:
+        with st.expander(_heading, expanded=False):
+            st.markdown(_body)
 
-### Expansion differences are point estimates only
-`ExpansionDifference(A → B) = P(B | first = A) − P(B | first ≠ A)` is reported as a
-raw point estimate. There are no confidence intervals and no significance tests.
-Small positive/negative differences should not be over-interpreted.
-
-### Tied first-category timestamps excluded
-If a user's first reviews across multiple categories share the exact same timestamp,
-the user is excluded from expansion cohorts (their "first category" is ambiguous).
-
-### Semantic Search runs on a stratified sample
-The deployed semantic search uses a **100K-point** Qdrant collection (25K per category),
-not the full 2.5M reviews. Rare phrases or long-tail products may be underrepresented.
-Embeddings are `all-MiniLM-L6-v2` (384-dim) — strong on general English but weak on
-domain jargon the model was not exposed to.
-
-### LLM synthesis is non-deterministic
-Gemini 2.5 Flash runs at temperature 0.3. Identical queries will produce similar but
-not byte-identical summaries. The LLM is also instructed to only cite the retrieved
-reviews — if it hallucinates content outside them, that is a failure mode, not an
-intended behavior.
-
-### K-means clustering has no dimension reduction
-Clusters are fit on standardized user features directly (no PCA, UMAP, or t-SNE).
-`MiniBatchKMeans` chooses `k` by silhouette score on a 200K subsample. Cluster labels
-(e.g. "Power reviewer", "One-and-done") are heuristic names assigned after the fact
-based on profile thresholds in `ml/clustering.py` — they are interpretive, not
-ground-truth segments.
-
-### Dataset scope
-- **Categories**: Only 4 (Electronics, Video Games, Software, Cell Phones & Accessories).
-  Findings do not generalize beyond these.
-- **verified_purchase = True** only. Unverified reviews are excluded.
-- **Date window**: Jan 1 – Jun 30, 2023. Seasonal or multi-year effects are not captured.
-
-### Source
-Raw data from the [UCSD Amazon Reviews 2023](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023)
-dataset. See `docs/METRICS.md` and `docs/data_quality_report.md` in the repo for full
-definitions and filtering statistics.
-"""
+    render_divider()
+    st.markdown(
+        "**Source.** Raw data from the "
+        "[UCSD Amazon Reviews 2023](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023) "
+        "dataset. See `docs/METRICS.md` and `docs/data_quality_report.md` in the repo for "
+        "full definitions and filtering statistics."
     )

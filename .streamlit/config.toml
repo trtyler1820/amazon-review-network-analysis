@@ -1,0 +1,21 @@
+# Streamlit base theme — locked to match web/theme.py PALETTE.
+# All fine-grained styling lives in web/styles.py (injected at runtime);
+# this file sets the baseline so there's no flash of light theme on load.
+
+[theme]
+base = "dark"
+primaryColor = "#f5b849"
+backgroundColor = "#0a0a0c"
+secondaryBackgroundColor = "#13131a"
+textColor = "#eef0f6"
+font = "sans serif"
+
+[browser]
+gatherUsageStats = false
+
+[server]
+headless = true
+
+[client]
+toolbarMode = "minimal"
+showErrorDetails = true
