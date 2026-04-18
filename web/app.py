@@ -228,8 +228,8 @@ render_sidebar_section_label("Navigate")
 _NAV_PAGES = [
     "Overview",
     "Review Synthesis",
-    "Expansion Pathways",
     "User Segmentation",
+    "Expansion Pathways",
     "Category Detail",
     "Limitations",
 ]
