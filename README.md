@@ -2,7 +2,7 @@
 
 A full-stack analytics system that models user retention and cross-category expansion patterns from 2.5M Amazon product reviews, combining graph-based behavioral analysis, semantic search over review text, and an interactive dashboard.
 
-> [Pre-recorded demo walkthrough](#) <!-- TODO: Replace with video link -->
+> [Pre-recorded demo walkthrough](https://umich.zoom.us/rec/share/xaeDFt9Z8keDUVFWumHACiZEmWDlALt3yS7lI3tTIbZ-8nP4sa_JrJX6dq772caB.JZxLZdG8Rllxm1Tp?startTime=1776527055000)
 
 ---
 
