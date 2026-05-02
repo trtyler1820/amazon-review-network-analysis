@@ -484,7 +484,7 @@ elif page == "Review Synthesis":
         subtitle=(
             "Ask a natural-language question across the review corpus. "
             "Sentence-transformer embeddings retrieve the top 25 most similar reviews; "
-            "Gemini 2.5 Flash synthesizes themes, a 3-sentence summary, and supporting excerpts."
+            "Gemini 2.5 Flash synthesizes themes, a 4-sentence summary, and supporting excerpts."
         ),
     )
 
@@ -680,16 +680,16 @@ elif page == "Review Synthesis":
                 _context_block = "\n\n".join(_review_lines)
 
                 _system_prompt = (
-                    "You are an analyst summarizing Amazon product reviews for a data science audience. "
+                    "You are an qualitative researcher with 25 years of experience, summarizing Amazon product reviews for a data science audience. "
                     "You will receive up to 25 reviews retrieved by semantic similarity to a user query. "
                     "Your output must be in Markdown and contain exactly three sections:\n\n"
                     "## Key Themes\n"
-                    "Up to 4 bullet points identifying the dominant themes across these reviews. "
+                    "Up to 5 bullet points identifying the dominant themes across these reviews. "
                     "Each bullet should be specific and evidence-based.\n\n"
                     "## Executive Summary\n"
-                    "Exactly 3 sentences summarizing the overall picture.\n\n"
+                    "Exactly 4 sentences summarizing the overall picture.\n\n"
                     "## Supporting Excerpts\n"
-                    "3 to 5 direct quotations from the reviews (cite as [N]) that best support the summary. "
+                    "Exactly 3 direct quotations from the reviews (cite as [N]) that best support the summary. "
                     "Quote verbatim — do not paraphrase.\n\n"
                     "Do not invent information not present in the reviews. "
                     "If the reviews are too sparse to identify clear themes, say so explicitly."

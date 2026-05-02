@@ -267,16 +267,16 @@ class TestSynthesisPrompt:
     """Verify the system prompt contains required output sections."""
 
     SYSTEM_PROMPT = (
-        "You are an analyst summarizing Amazon product reviews for a data science audience. "
+        "You are an qualitative researcher with 25 years of experience, summarizing Amazon product reviews for a data science audience. "
         "You will receive up to 25 reviews retrieved by semantic similarity to a user query. "
         "Your output must be in Markdown and contain exactly three sections:\n\n"
         "## Key Themes\n"
-        "Up to 4 bullet points identifying the dominant themes across these reviews. "
+        "Up to 5 bullet points identifying the dominant themes across these reviews. "
         "Each bullet should be specific and evidence-based.\n\n"
         "## Executive Summary\n"
-        "Exactly 3 sentences summarizing the overall picture.\n\n"
+        "Exactly 4 sentences summarizing the overall picture.\n\n"
         "## Supporting Excerpts\n"
-        "3 to 5 direct quotations from the reviews (cite as [N]) that best support the summary. "
+        "Exactly 3 direct quotations from the reviews (cite as [N]) that best support the summary. "
         "Quote verbatim — do not paraphrase.\n\n"
         "Do not invent information not present in the reviews. "
         "If the reviews are too sparse to identify clear themes, say so explicitly."
@@ -291,11 +291,11 @@ class TestSynthesisPrompt:
     def test_requires_supporting_excerpts_section(self):
         assert "## Supporting Excerpts" in self.SYSTEM_PROMPT
 
-    def test_limits_bullet_points_to_four(self):
-        assert "Up to 4 bullet points" in self.SYSTEM_PROMPT
+    def test_limits_bullet_points_to_five(self):
+        assert "Up to 5 bullet points" in self.SYSTEM_PROMPT
 
-    def test_requires_three_sentences(self):
-        assert "Exactly 3 sentences" in self.SYSTEM_PROMPT
+    def test_requires_four_sentences(self):
+        assert "Exactly 4 sentences" in self.SYSTEM_PROMPT
 
     def test_requires_citation_format(self):
         assert "cite as [N]" in self.SYSTEM_PROMPT
